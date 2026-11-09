@@ -2390,6 +2390,15 @@ async def device_action(device_id: str, request: Request,
             res = devices.agent_request(dev, "POST", "/api/speak/stop", {})
         elif action == "exec":
             res = devices.agent_request(dev, "POST", "/api/exec", {"command": command}, timeout=20)
+        elif action == "autostart":
+            want = (enabled or "1").lower() not in ("0", "false", "off", "no")
+            res = devices.agent_request(dev, "POST", "/api/autostart", {"enabled": want})
+        elif action == "restart":
+            try:
+                res = devices.agent_request(dev, "POST", "/api/restart", {}, timeout=3)
+            except devices.AgentError:
+                # 重启会断开当前连接，属于正常现象
+                res = {"ok": True, "restarting": True}
         elif action == "identify":
             res = devices.agent_request(dev, "POST", "/api/speak", {"text": "这是一体机端测试播报"})
         else:

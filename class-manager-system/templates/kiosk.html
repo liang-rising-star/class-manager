@@ -86,6 +86,9 @@
 
             <div class="kc-row">
                 <button type="button" class="btn btn-ghost" id="kIdentify">测试播报</button>
+                <button type="button" class="btn btn-ghost" id="kAutostart">开机自启</button>
+                <button type="button" class="btn btn-ghost" id="kRestart">重启一体机端</button>
+                <button type="button" class="btn btn-ghost" id="kOpenUrl">打开网址</button>
             </div>
 
             <h3 style="font-size:14px;margin:0 0 12px;color:var(--text-strong)">屏幕直播</h3>
@@ -116,6 +119,7 @@
     var sel = document.getElementById('kDevice');
     var out = document.getElementById('kOut');
     var current = null;
+    var autoStartOn = false;
 
     if (!devices.length) { emptyEl.hidden = false; return; }
     panelEl.hidden = false;
@@ -179,6 +183,10 @@
                     row('远程执行', rem.enabled ? '已授权（本机开启）' : '未授权') +
                     row('UDP 视频', (vid.online ? '接收中' : '无数据') + ' · ' + (vid.fps || 0) + ' fps');
 
+                autoStartOn = !!(ag && ag.autostart);
+                document.getElementById('kAutostart').textContent =
+                    autoStartOn ? '开机自启：已开启' : '开机自启：已关闭';
+
                 if (st.error) out.textContent = st.error;
             })
             .catch(function () { });
@@ -194,6 +202,50 @@
             method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
         }).then(function (r) { return r.json(); });
     }
+
+    document.getElementById('kAutostart').onclick = function () {
+        if (!current) return;
+        var target = !autoStartOn;
+        var body = new URLSearchParams();
+        body.set('action', 'autostart');
+        body.set('csrf_token', csrf);
+        body.set('enabled', target ? '1' : '0');
+        out.textContent = target ? '正在开启开机自启…' : '正在关闭开机自启…';
+
+        fetch('/device/' + current.id + '/action', {
+            method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (r) { return r.json(); })
+          .then(function (res) {
+              out.textContent = JSON.stringify(res, null, 2);
+              refresh();
+          })
+          .catch(function (e) { out.textContent = '失败：' + e; });
+    };
+
+    document.getElementById('kRestart').onclick = function () {
+        if (!current) return;
+        if (!confirm('确定重启「' + (current.name || current.host) + '」的一体机端？\n重启期间该设备的监控和叫号会中断约 5 秒。')) return;
+
+        var body = new URLSearchParams();
+        body.set('action', 'restart');
+        body.set('csrf_token', csrf);
+        out.textContent = '正在重启…';
+
+        fetch('/device/' + current.id + '/action', {
+            method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (r) { return r.json(); })
+          .then(function (res) {
+              out.textContent = JSON.stringify(res, null, 2) + '\n\n约 5 秒后自动刷新状态…';
+              setTimeout(refresh, 5000);
+          })
+          .catch(function (e) { out.textContent = '失败：' + e; });
+    };
+
+    document.getElementById('kOpenUrl').onclick = function () {
+        if (!current) return;
+        var url = 'http://' + current.host + ':' + current.port + '/';
+        window.open(url, '_blank');
+    };
 
     document.getElementById('kIdentify').onclick = function () {
         if (!current) return;

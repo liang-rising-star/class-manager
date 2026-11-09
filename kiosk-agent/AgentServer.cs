@@ -606,6 +606,36 @@ namespace ClassManager.KioskAgent
                 return Json(ctx, new { ok = true });
             });
 
+            // ---------- 重启一体机端（进程级） ----------
+            app.MapPost("/api/restart", (HttpContext ctx) =>
+            {
+                var pid = Environment.ProcessId;
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(600);          // 先让响应发回去
+                    try
+                    {
+                        var exe = Environment.ProcessPath ?? Application.ExecutablePath;
+                        var psi = new System.Diagnostics.ProcessStartInfo(exe)
+                        {
+                            UseShellExecute = true,
+                            Arguments = $"--wait-pid {pid}"
+                        };
+                        System.Diagnostics.Process.Start(psi);
+                        Log.Write("收到重启指令，已启动新进程，旧进程退出");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Write("重启失败: " + ex.Message);
+                    }
+
+                    await Task.Delay(400);
+                    Environment.Exit(0);
+                });
+
+                return Json(ctx, new { ok = true, restarting = true });
+            });
+
             // ---------- 屏幕直播（按需采集） ----------
             app.MapGet("/api/screen/snapshot", (HttpContext ctx) =>
             {
