@@ -130,7 +130,7 @@
                 if (!file || !pendingKind) return;
 
                 if (file.size > 400 * 1024) {
-                    alert('音频文件不要超过 400KB，否则无法记住');
+                    appAlert({ title: '文件太大', text: '音频文件不要超过 400KB，否则无法记住' });
                     pendingKind = null;
                     return;
                 }
@@ -142,7 +142,7 @@
                         choice[pendingKind] = 'custom';
                         play(pendingKind === 'fail' ? 'bad' : 'ok');
                     } catch (e) {
-                        alert('这个音频太大，浏览器存不下，换一个短一点的');
+                        appAlert({ title: '文件太大', text: '这个音频太大，浏览器存不下，换一个短一点的' });
                     }
                     pendingKind = null;
                 };

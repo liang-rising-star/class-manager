@@ -296,6 +296,13 @@ namespace ClassManager.KioskAgent
                     fps = Screen.Fps,
                     error = Screen.LastError
                 },
+                speak = new
+                {
+                    chimeBefore = SpeakService.ChimeBefore,
+                    chimeAfter = SpeakService.ChimeAfter,
+                    chimeId = SpeakService.ChimeId,
+                    volume = SpeakService.Volume
+                },
                 talkback = new
                 {
                     playing = Talkback.IsPlaying,
@@ -356,6 +363,28 @@ namespace ClassManager.KioskAgent
                         _config.Mic.Gain = Math.Clamp(mg.GetDouble(), 0.1, 3.0);
                 }
 
+                if (body.TryGetProperty("speak", out var spk) && spk.ValueKind == JsonValueKind.Object)
+                {
+                    if (spk.TryGetProperty("chimeBefore", out var cb) &&
+                        (cb.ValueKind == JsonValueKind.True || cb.ValueKind == JsonValueKind.False))
+                        _config.Speak.ChimeBefore = cb.GetBoolean();
+
+                    if (spk.TryGetProperty("chimeAfter", out var ca) &&
+                        (ca.ValueKind == JsonValueKind.True || ca.ValueKind == JsonValueKind.False))
+                        _config.Speak.ChimeAfter = ca.GetBoolean();
+
+                    if (spk.TryGetProperty("chimeId", out var ci) && ci.ValueKind == JsonValueKind.String)
+                    {
+                        var id = ci.GetString() ?? "";
+                        if (ChimePlayer.IsValid(id)) _config.Speak.ChimeId = id;
+                    }
+
+                    if (spk.TryGetProperty("volume", out var sv) && sv.ValueKind == JsonValueKind.Number)
+                        _config.Speak.Volume = ClampInt(sv, -1, 100, 70);
+
+                    ApplySpeakSettings();
+                }
+
                 if (body.TryGetProperty("remote", out var rem) && rem.ValueKind == JsonValueKind.Object)
                 {
                     if (rem.TryGetProperty("enabled", out var re)) _config.Remote.Enabled = re.GetBoolean();
@@ -372,7 +401,8 @@ namespace ClassManager.KioskAgent
                 }
 
                 _config.Save();
-                ApplyRuntimeSettings();
+                ApplySpeakSettings();
+            ApplyRuntimeSettings();
                 Log.Write("设置已更新");
                 return Json(ctx, new { ok = true });
             });
@@ -834,6 +864,19 @@ namespace ClassManager.KioskAgent
             {
                 Log.Write("清除会话失败: " + ex.Message);
             }
+        }
+
+        /// <summary>把配置里的提示音开关同步到播报服务。</summary>
+        private void ApplySpeakSettings()
+        {
+            SpeakService.ChimeBefore = _config.Speak?.ChimeBefore ?? true;
+            SpeakService.ChimeAfter = _config.Speak?.ChimeAfter ?? false;
+            SpeakService.ChimeId = ChimePlayer.IsValid(_config.Speak?.ChimeId)
+                ? _config.Speak!.ChimeId!
+                : "airup";
+
+            int v = _config.Speak?.Volume ?? 70;
+            SpeakService.Volume = (v >= 0 && v <= 100) ? v : -1;
         }
 
         public void ApplyRuntimeSettings()

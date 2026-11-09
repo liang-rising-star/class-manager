@@ -16,14 +16,17 @@ import hashlib
 import datetime
 import os
 import io
+import csv
 import re
 import time
 import threading
 import zipfile
+import random
 import secrets
 import urllib.parse
 import uuid
 import devices
+import integrity
 import string
 import barcode
 from docx import Document
@@ -368,6 +371,12 @@ def write_config(config):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
 
+    try:
+        integrity.refresh()
+    except Exception:
+        pass
+
+
 # 获取数据库绝对路径
 def get_db_path():
     config = read_config()
@@ -602,6 +611,55 @@ def _enable_dpi_awareness():
 HISTORY_NAME = "history.json"
 HISTORY_LIMIT = 30
 
+
+def harden_data_dir_acl():
+    """把 data 目录的写权限收紧到「当前用户 / SYSTEM / Administrators」。
+
+    默认继承来的 ACL 常常是「Authenticated Users: 修改」，也就是同一台机器上
+    任何登录用户都能改 config.json / devices.json；这里显式断开继承并重设。
+    失败不影响运行，只记日志。
+    """
+    if os.name != "nt":
+        return
+
+    try:
+        import subprocess
+
+        sid = None
+        try:
+            out = subprocess.run(
+                ["whoami", "/user", "/fo", "csv", "/nh"],
+                capture_output=True, text=True, timeout=5, check=False).stdout or ""
+            m = re.search(r"(S-1-5-[0-9-]+)", out)
+            if m:
+                sid = m.group(1)
+        except Exception:
+            sid = None
+
+        if not sid:
+            return
+
+        target = DATA_DIR
+        if not os.path.isdir(target):
+            return
+
+        subprocess.run(
+            ["icacls", target, "/inheritance:r",
+             "/grant:r", f"*{sid}:(OI)(CI)F",
+             "/grant:r", "*S-1-5-18:(OI)(CI)F",      # SYSTEM
+             "/grant:r", "*S-1-5-32-544:(OI)(CI)F"], # Administrators
+            capture_output=True, text=True, timeout=10, check=False)
+    except Exception:
+        pass
+
+
+
+harden_data_dir_acl()
+
+try:
+    integrity.verify()
+except Exception:
+    pass
 
 def history_path():
     return os.path.join(DATA_DIR, HISTORY_NAME)
@@ -1031,6 +1089,121 @@ def find_legacy_databases(folder, max_depth=4):
     return results
 
 
+LEGACY_JSON_NAMES = ("config.json", "devices.json", "history.json")
+
+
+def find_legacy_payloads(folder, max_depth=4):
+    """扫描旧版目录：scores.db 以及 config.json / devices.json / history.json。
+
+    旧版（class-score）没有 json 配置，扫不到就返回 None，不影响导入数据库；
+    同版本互导时会带上这些文件，能一并恢复。
+    """
+    result = {
+        "databases": find_legacy_databases(folder, max_depth=max_depth),
+        "config": None,
+        "devices": None,
+        "history": None,
+    }
+
+    base = os.path.abspath(folder).rstrip(os.sep)
+    found = {}
+
+    for root, dirs, files in os.walk(base):
+        depth = root[len(base):].count(os.sep)
+        if depth > max_depth:
+            dirs[:] = []
+            continue
+        dirs[:] = [d for d in dirs if d not in {"__pycache__", ".git", "node_modules"}]
+
+        for name in files:
+            low = name.lower()
+            if low not in LEGACY_JSON_NAMES:
+                continue
+            path = os.path.join(root, name)
+            # 优先取 data 目录里的那份（最像真正的运行时数据）
+            score = 2 if os.path.basename(root).lower() == "data" else 1
+            prev = found.get(low)
+            if prev is None or score > prev[0]:
+                found[low] = (score, path)
+
+    if "config.json" in found:
+        result["config"] = found["config.json"][1]
+    if "devices.json" in found:
+        result["devices"] = found["devices.json"][1]
+    if "history.json" in found:
+        result["history"] = found["history.json"][1]
+
+    return result
+
+
+def import_legacy_devices(src_path):
+    """把旧版的班级设备清单合并进来（按 host+port 去重），返回 (总数, 新增数)。"""
+    with open(src_path, "r", encoding="utf-8-sig") as f:
+        data = json.load(f)
+
+    if not isinstance(data, list):
+        raise ValueError("devices.json 格式不对（应为列表）")
+
+    existing = {(d.get("host"), d.get("port")) for d in devices.list_devices()}
+    total, added = 0, 0
+
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        host = (item.get("host") or "").strip()
+        if not host:
+            continue
+        total += 1
+        key = (host, int(item.get("port") or 3457))
+        if key in existing:
+            continue
+        try:
+            devices.add_device(
+                item.get("name") or host,
+                item.get("room") or "",
+                host,
+                key[1],
+                item.get("key") or "",
+                int(item.get("video_port") or 0),
+            )
+            existing.add(key)
+            added += 1
+        except Exception:
+            continue
+
+    return total, added
+
+
+def import_legacy_history(src_path):
+    """把旧版的印卡批次合并进来（按 id 去重），返回 (总数, 新增数)。"""
+    with open(src_path, "r", encoding="utf-8-sig") as f:
+        data = json.load(f)
+
+    if not isinstance(data, list):
+        raise ValueError("history.json 格式不对（应为列表）")
+
+    current = load_history()
+    ids = {r.get("id") for r in current if isinstance(r, dict)}
+    total, added = 0, 0
+
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        total += 1
+        bid = item.get("id")
+        if bid and bid in ids:
+            continue
+        current.append(item)
+        if bid:
+            ids.add(bid)
+        added += 1
+
+    if added:
+        save_history(current)
+
+    return total, added
+
+
 def import_legacy_database(src_path):
     """把旧库的积分记录合并进当前库，返回 (总数, 实际导入数)。"""
     src = sqlite3.connect(f"file:{src_path}?mode=ro", uri=True)
@@ -1112,6 +1285,35 @@ def init_db():
     columns = {row[1] for row in cursor.execute("PRAGMA table_info(scores)")}
     if "verified_at" not in columns:
         cursor.execute("ALTER TABLE scores ADD COLUMN verified_at TEXT")
+
+    # 学生名单（班级叫号用）
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS students (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        gender TEXT DEFAULT '',
+        number TEXT DEFAULT '',
+        class_name TEXT DEFAULT '',
+        created_at TEXT DEFAULT '',
+        sort_order INTEGER DEFAULT 0
+    )""")
+
+    stu_cols = {row[1] for row in cursor.execute("PRAGMA table_info(students)")}
+    if "sort_order" not in stu_cols:
+        cursor.execute("ALTER TABLE students ADD COLUMN sort_order INTEGER DEFAULT 0")
+        cursor.execute("UPDATE students SET sort_order = id WHERE sort_order IS NULL OR sort_order = 0")
+    if "group_id" not in stu_cols:
+        cursor.execute("ALTER TABLE students ADD COLUMN group_id INTEGER DEFAULT 0")
+
+    # 小组（课堂分组用）
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS student_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT ''
+    )""")
+
     conn.commit()
     conn.close()
 
@@ -2035,20 +2237,50 @@ def import_legacy(request: Request, legacy_path: str = Form(None),
     if not os.path.isdir(folder):
         return finish("error", f"路径不存在：{folder}")
 
-    candidates = find_legacy_databases(folder)
-    if not candidates:
-        return finish("error", f"没有在该目录下找到 scores.db：{folder}")
+    payload = find_legacy_payloads(folder)
+    candidates = payload["databases"]
 
-    src_path, _, _ = candidates[0]
-    try:
-        total, inserted = import_legacy_database(src_path)
-    except Exception as exc:
-        return finish("error", f"导入失败：{exc}")
+    # 老版本只有 scores.db；同版本互导时还会带 json，两者都没有才算失败
+    if not candidates and not payload["devices"] and not payload["history"]:
+        return finish("error", f"没有在该目录下找到 scores.db 或配置文件：{folder}")
 
-    skipped = total - inserted
-    text = f"已从 {src_path} 导入 {inserted} 条记录"
-    if skipped > 0:
-        text += f"（跳过重复 {skipped} 条）"
+    parts = []
+    failed = None
+
+    if candidates:
+        src_path, _, _ = candidates[0]
+        try:
+            total, inserted = import_legacy_database(src_path)
+            skipped = total - inserted
+            piece = f"积分记录 {inserted} 条"
+            if skipped > 0:
+                piece += f"（跳过重复 {skipped} 条）"
+            parts.append(piece)
+        except Exception as exc:
+            failed = f"积分数据库导入失败：{exc}"
+
+    if payload["devices"]:
+        try:
+            total, added = import_legacy_devices(payload["devices"])
+            parts.append(f"班级设备 {added} 台" + (f"（跳过重复 {total - added} 台）" if total > added else ""))
+        except Exception as exc:
+            parts.append(f"班级设备未导入（{exc}）")
+
+    if payload["history"]:
+        try:
+            total, added = import_legacy_history(payload["history"])
+            parts.append(f"印卡批次 {added} 个" + (f"（跳过重复 {total - added} 个）" if total > added else ""))
+        except Exception as exc:
+            parts.append(f"印卡批次未导入（{exc}）")
+
+    if not parts:
+        return finish("error", failed or "没有可导入的内容")
+
+    integrity.audit("import_legacy", "导入完成：" + "，".join(parts), _client_ip(request))
+    text = "导入完成：" + "，".join(parts)
+    if failed:
+        text += f"；{failed}"
+
     return finish("success", text)
 
 
@@ -2117,9 +2349,11 @@ async def submit_login(request: Request, username: str = Form(...), password: st
     ok, needs_upgrade = verify_password(password or "", config["admin"]["password"])
     if config["admin"]["username"] != username or not ok:
         _note_login_failure(ip)
+        integrity.audit("login_failed", f"用户名 {username}", ip)
         return render(request, "login.html", {"system_name": system_name, "error": True})
 
     _clear_login_failures(ip)
+    integrity.audit("login", f"用户 {username}", ip)
     # 每次登录成功都先播放启动动画，再进入控制台
     # 历史明文口令登录成功后自动升级为 PBKDF2 哈希
     if needs_upgrade:
@@ -2298,6 +2532,9 @@ async def device_remote_settings(device_id: str, request: Request,
                                  room_name: str = Form(""), device_name: str = Form(""),
                                  width: str = Form(""), height: str = Form(""),
                                  fps: str = Form(""), quality: str = Form(""),
+                                 chime_before: str = Form(""), chime_after: str = Form(""),
+                                 chime_id: str = Form(""),
+                                 speak_volume: str = Form(""),
                                  csrf_token: str = Form(None)):
     """远程下发基础设置：教室名、设备名、摄像头分辨率/帧率/画质。"""
     check_csrf(request, csrf_token)
@@ -2328,6 +2565,24 @@ async def device_remote_settings(device_id: str, request: Request,
     if cam:
         cam["enabled"] = True
         payload["camera"] = cam
+
+    def _flag(v: str):
+        return str(v).strip().lower() in ("1", "true", "on", "yes")
+
+    speak = {}
+    if chime_before != "":
+        speak["chimeBefore"] = _flag(chime_before)
+    if chime_after != "":
+        speak["chimeAfter"] = _flag(chime_after)
+    if chime_id.strip():
+        speak["chimeId"] = chime_id.strip()
+    if speak_volume.strip():
+        try:
+            speak["volume"] = max(-1, min(100, int(speak_volume)))
+        except ValueError:
+            return JSONResponse({"ok": False, "error": "播报音量需要是 0-100 的整数"})
+    if speak:
+        payload["speak"] = speak
 
     if not payload:
         return JSONResponse({"ok": False, "error": "没有要修改的内容"})
@@ -2413,7 +2668,7 @@ async def device_status(device_id: str, request: Request):
 
 
 @app.post("/device/{device_id}/action")
-async def device_action(device_id: str, request: Request,
+async def device_action(device_id: str, request: Request, rate: int = Form(0),
                         action: str = Form(...), text: str = Form(""),
                         command: str = Form(""), enabled: str = Form("1"),
                         csrf_token: str = Form(None)):
@@ -2432,7 +2687,8 @@ async def device_action(device_id: str, request: Request,
 
     try:
         if action == "speak":
-            res = devices.agent_request(dev, "POST", "/api/speak", {"text": text})
+            res = devices.agent_request(dev, "POST", "/api/speak",
+                                        {"text": text, "rate": max(-10, min(10, rate))})
         elif action == "speak_stop":
             res = devices.agent_request(dev, "POST", "/api/speak/stop", {})
         elif action == "exec":
@@ -2980,6 +3236,8 @@ async def setting(request: Request):
 
     return render(request, "setting.html", {
         "system_name": system_name,
+        "integrity_alert": integrity.last_alert(),
+        "audit_lines": integrity.audit_tail(12),
         "success": result == "success",
         "wrong_password": result == "wrong_password",
         "reset_wrong_password": result == "reset_wrong_password",
@@ -3009,6 +3267,677 @@ async def setting(request: Request):
     })
 
 # 提交修改密码
+# ==================== 学生名单 ====================
+
+STUDENT_HEADER_HINTS = {
+    "name": ("姓名", "名字", "学生", "学生姓名", "name"),
+    "gender": ("性别", "男女", "sex", "gender"),
+    "number": ("学号", "编号", "序号", "座号", "number", "no"),
+    "class": ("班级", "班", "class"),
+}
+
+
+def _norm_gender(value):
+    v = str(value or "").strip()
+    if v in ("男", "男生", "M", "m", "male", "Male", "1"):
+        return "男"
+    if v in ("女", "女生", "F", "f", "female", "Female", "0"):
+        return "女"
+    return ""
+
+
+def _student_conn():
+    init_db()
+    return connect_db()
+
+
+def list_students(keyword=""):
+    kw = (keyword or "").strip()
+    with _student_conn() as db:
+        if kw:
+            rows = db.execute(
+                "SELECT id, name, gender, number, class_name FROM students"
+                " WHERE name LIKE ? OR number LIKE ?"
+                " ORDER BY sort_order, id",
+                (f"%{kw}%", f"%{kw}%")).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT id, name, gender, number, class_name FROM students"
+                " ORDER BY sort_order, id").fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_students(items):
+    """items: [(name, gender, number, class_name)]；按 姓名+班级 去重，返回 (总数, 新增)。"""
+    init_db()
+    db = connect_db()
+    total, added = 0, 0
+    try:
+        with db:
+            for name, gender, number, cls in items:
+                name = (name or "").strip()
+                if not name:
+                    continue
+                total += 1
+                exists = db.execute(
+                    "SELECT 1 FROM students WHERE name=?", (name,)).fetchone()
+                if exists:
+                    continue
+                db.execute(
+                    "INSERT INTO students (name, gender, number, class_name, created_at)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (name, gender or "", str(number or "").strip(), (cls or "").strip(),
+                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                added += 1
+    finally:
+        db.close()
+    return total, added
+
+
+def parse_students_file(filename, content):
+    """解析上传的表格：支持 .xlsx/.xlsm 与 .csv，返回 [(name, gender, number, class)]。"""
+    ext = (os.path.splitext(filename or "")[1] or "").lower()
+    rows = []
+
+    if ext in (".csv", ".txt"):
+        text = None
+        for enc in ("utf-8-sig", "utf-8", "gbk", "gb18030"):
+            try:
+                text = content.decode(enc)
+                break
+            except Exception:
+                continue
+        if text is None:
+            raise ValueError("CSV 编码无法识别（请另存为 UTF-8 或 GBK）")
+        rows = [[c for c in r] for r in csv.reader(io.StringIO(text))]
+    elif ext in (".xlsx", ".xlsm"):
+        try:
+            import openpyxl
+        except ImportError:
+            raise ValueError("缺少 openpyxl，无法读取 Excel；可改用 CSV 格式导入")
+        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        ws = wb.active
+        for row in ws.iter_rows(values_only=True):
+            rows.append(list(row))
+        wb.close()
+    else:
+        raise ValueError("只支持 .xlsx / .xlsm / .csv 文件")
+
+    rows = [r for r in rows if any(str(c or "").strip() for c in r)]
+    if not rows:
+        raise ValueError("表格是空的")
+
+    # 表头识别：找不到就用「第 1 列姓名、第 2 列性别」的默认顺序
+    header = [str(c or "").strip().lower() for c in rows[0]]
+    col = {}
+    for key, hints in STUDENT_HEADER_HINTS.items():
+        for idx, cell in enumerate(header):
+            if any(h.lower() in cell for h in hints):
+                col[key] = idx
+                break
+
+    has_header = "name" in col
+    body = rows[1:] if has_header else rows
+
+    if not has_header:
+        col = {"name": 0, "gender": 1, "number": 2, "class": 3}
+
+    items = []
+    for r in body:
+        def cell(key):
+            idx = col.get(key)
+            if idx is None or idx >= len(r):
+                return ""
+            return str(r[idx] or "").strip()
+
+        name = cell("name")
+        if not name:
+            continue
+        items.append((name, _norm_gender(cell("gender")), cell("number"), cell("class")))
+
+    if not items:
+        raise ValueError("没有解析到学生姓名，请检查表头是否有「姓名」列")
+    return items
+
+
+@app.get("/students", response_class=HTMLResponse)
+def students_page(request: Request):
+    _require_login(request)
+    config = read_config()
+    keyword = request.query_params.get("q", "")
+    rows = list_students(keyword)
+    _sid, sess = get_session(request)
+    notice = sess.pop("students_notice", None) if sess else None
+
+    return render(request, "students.html", {
+        "system_name": config["system"]["name"],
+        "students": rows,
+        "keyword": keyword,
+        "notice": notice,
+        "total": len(rows),
+        "boys": sum(1 for r in rows if r["gender"] == "男"),
+        "girls": sum(1 for r in rows if r["gender"] == "女"),
+    })
+
+
+@app.post("/students/import")
+async def students_import(request: Request, csrf_token: str = Form(None)):
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    form = await request.form()
+    upload = form.get("file")
+    if upload is None or not getattr(upload, "filename", ""):
+        return RedirectResponse(url="/students", status_code=303)
+
+    content = await upload.read()
+    try:
+        items = parse_students_file(upload.filename, content)
+        total, added = add_students(items)
+        msg = {"kind": "success", "text": f"导入完成：解析 {total} 名学生，新增 {added} 名，跳过重复 {total - added} 名"}
+    except Exception as exc:
+        msg = {"kind": "error", "text": f"导入失败：{exc}"}
+
+    sid, sess = get_session(request)
+    if sess:
+        sess["students_notice"] = msg
+    return RedirectResponse(url="/students", status_code=303)
+
+
+@app.post("/students/create")
+async def students_create(request: Request, csrf_token: str = Form(None)):
+    """手动添加一名学生（列表内联编辑用）。"""
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    form = await request.form()
+    name = (form.get("name") or "").strip()
+    if not name:
+        return JSONResponse({"ok": False, "error": "姓名不能为空"})
+
+    db = connect_db()
+    try:
+        with db:
+            row = db.execute("SELECT IFNULL(MAX(sort_order), 0) FROM students").fetchone()
+            nxt = (row[0] or 0) + 1
+            cur = db.execute(
+                "INSERT INTO students (name, gender, number, class_name, created_at, sort_order)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (name, (form.get("gender") or "").strip(), (form.get("number") or "").strip(),
+                 (form.get("class_name") or "").strip(),
+                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), nxt))
+            new_id = cur.lastrowid
+    finally:
+        db.close()
+
+    return JSONResponse({"ok": True, "id": new_id})
+
+
+@app.post("/students/update")
+async def students_update(request: Request, csrf_token: str = Form(None)):
+    """内联编辑保存。"""
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    form = await request.form()
+    try:
+        sid = int(form.get("id") or 0)
+    except ValueError:
+        return JSONResponse({"ok": False, "error": "参数错误"})
+
+    name = (form.get("name") or "").strip()
+    if not sid or not name:
+        return JSONResponse({"ok": False, "error": "姓名不能为空"})
+
+    db = connect_db()
+    try:
+        with db:
+            db.execute(
+                "UPDATE students SET name=?, gender=?, number=? WHERE id=?",
+                (name, (form.get("gender") or "").strip(), (form.get("number") or "").strip(), sid))
+    finally:
+        db.close()
+
+    return JSONResponse({"ok": True})
+
+
+@app.post("/students/bulk_delete")
+async def students_bulk_delete(request: Request, csrf_token: str = Form(None)):
+    """批量删除：删除数量超过总人数的 1/3 时，必须校验管理员密码。"""
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    form = await request.form()
+    ids = [x for x in (form.get("ids") or "").split(",") if x.strip().isdigit()]
+    if not ids:
+        return JSONResponse({"ok": False, "error": "没有选中学生"})
+
+    db = connect_db()
+    try:
+        total = db.execute("SELECT COUNT(*) FROM students").fetchone()[0] or 0
+
+        # 超过三分之一 → 校验管理员口令
+        need_pwd = total > 0 and len(ids) > total / 3
+        if need_pwd:
+            password = (form.get("password") or "").strip()
+            if not password:
+                return JSONResponse({
+                    "ok": False, "need_password": True,
+                    "error": f"本次要删除 {len(ids)} / {total} 名学生，超过三分之一，需要管理员密码"
+                }, status_code=403)
+
+            config = read_config()
+            ok, _ = verify_password(password, config["admin"]["password"])
+            if not ok:
+                integrity.audit("bulk_delete_failed", f"批量删除密码错误，尝试删除 {len(ids)} 名学生",
+                                _client_ip(request))
+                return JSONResponse({"ok": False, "need_password": True,
+                                     "error": "管理员密码不正确"}, status_code=403)
+
+        with db:
+            db.executemany("DELETE FROM students WHERE id=?", [(int(i),) for i in ids])
+    finally:
+        db.close()
+
+    integrity.audit("students_bulk_delete", f"批量删除 {len(ids)} 名学生", _client_ip(request))
+    return JSONResponse({"ok": True, "deleted": len(ids)})
+
+
+@app.post("/students/reorder")
+async def students_reorder(request: Request, csrf_token: str = Form(None)):
+    """拖动排序后保存顺序。"""
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    form = await request.form()
+    ids = [x for x in (form.get("ids") or "").split(",") if x.strip().isdigit()]
+    if not ids:
+        return JSONResponse({"ok": False, "error": "参数错误"})
+
+    db = connect_db()
+    try:
+        with db:
+            for idx, sid in enumerate(ids, start=1):
+                db.execute("UPDATE students SET sort_order=? WHERE id=?", (idx, int(sid)))
+    finally:
+        db.close()
+
+    return JSONResponse({"ok": True})
+
+
+@app.post("/students/delete")
+def students_delete(request: Request, student_id: int = Form(...), csrf_token: str = Form(None)):
+    check_csrf(request, csrf_token)
+    _require_login(request)
+    db = connect_db()
+    try:
+        with db:
+            db.execute("DELETE FROM students WHERE id=?", (student_id,))
+    finally:
+        db.close()
+    return RedirectResponse(url="/students", status_code=303)
+
+
+@app.post("/students/clear")
+def students_clear(request: Request, csrf_token: str = Form(None)):
+    check_csrf(request, csrf_token)
+    _require_login(request)
+    db = connect_db()
+    try:
+        with db:
+            db.execute("DELETE FROM students")
+    finally:
+        db.close()
+    sid, sess = get_session(request)
+    if sess:
+        sess["students_notice"] = {"kind": "success", "text": "学生名单已清空"}
+    return RedirectResponse(url="/students", status_code=303)
+
+
+# ==================== 小组 ====================
+
+def list_groups():
+    init_db()
+    db = connect_db()
+    try:
+        gs = [dict(r) for r in db.execute(
+            "SELECT id, name, sort_order FROM student_groups ORDER BY sort_order, id").fetchall()]
+        rows = db.execute(
+            "SELECT id, name, gender, number, group_id FROM students ORDER BY sort_order, id").fetchall()
+    finally:
+        db.close()
+
+    by_group = {}
+    ungrouped = []
+    for r in rows:
+        item = dict(r)
+        gid = item.get("group_id") or 0
+        if gid and any(g["id"] == gid for g in gs):
+            by_group.setdefault(gid, []).append(item)
+        else:
+            ungrouped.append(item)
+
+    for g in gs:
+        g["members"] = by_group.get(g["id"], [])
+
+    return gs, ungrouped
+
+
+def create_groups(count):
+    """把学生平均分成 count 组（性别尽量均衡），返回组数。"""
+    init_db()
+    db = connect_db()
+    try:
+        with db:
+            db.execute("DELETE FROM student_groups")
+            db.execute("UPDATE students SET group_id=0")
+            for i in range(1, count + 1):
+                db.execute(
+                    "INSERT INTO student_groups (name, sort_order, created_at) VALUES (?, ?, ?)",
+                    (f"{i} 组", i, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+            groups = [r[0] for r in db.execute(
+                "SELECT id FROM student_groups ORDER BY sort_order").fetchall()]
+
+            students = [dict(r) for r in db.execute(
+                "SELECT id, gender FROM students ORDER BY sort_order, id").fetchall()]
+
+        # 男女生分别轮转分配，保证每组性别尽量均衡
+        boys = [x["id"] for x in students if x.get("gender") == "男"]
+        girls = [x["id"] for x in students if x.get("gender") == "女"]
+        others = [x["id"] for x in students if x.get("gender") not in ("男", "女")]
+
+        assignment = {}
+        for pool in (boys, girls, others):
+            for idx, sid in enumerate(pool):
+                assignment[sid] = groups[idx % len(groups)]
+
+        with db:
+            for sid, gid in assignment.items():
+                db.execute("UPDATE students SET group_id=? WHERE id=?", (gid, sid))
+    finally:
+        db.close()
+
+    return len(groups)
+
+
+def random_partition(count):
+    """随机分组（不落库），返回 [[学生...], ...]。"""
+    db = connect_db()
+    try:
+        students = [dict(r) for r in db.execute(
+            "SELECT id, name, gender, number FROM students ORDER BY sort_order, id").fetchall()]
+    finally:
+        db.close()
+
+    random.shuffle(students)
+    buckets = [[] for _ in range(max(1, count))]
+    for i, st in enumerate(students):
+        buckets[i % count].append(st)
+    return buckets
+
+
+@app.get("/groups", response_class=HTMLResponse)
+def groups_page(request: Request):
+    _require_login(request)
+    config = read_config()
+    gs, ungrouped = list_groups()
+    _sid, sess = get_session(request)
+    notice = sess.pop("groups_notice", None) if sess else None
+
+    return render(request, "groups.html", {
+        "system_name": config["system"]["name"],
+        "groups": gs,
+        "ungrouped": ungrouped,
+        "total": len(ungrouped) + sum(len(g["members"]) for g in gs),
+        "notice": notice,
+    })
+
+
+@app.post("/groups/auto")
+def groups_auto(request: Request, count: int = Form(2), csrf_token: str = Form(None)):
+    check_csrf(request, csrf_token)
+    _require_login(request)
+    n = max(2, min(12, count))
+    try:
+        made = create_groups(n)
+        msg = {"kind": "success", "text": f"已把学生平均分成 {made} 组"}
+    except Exception as exc:
+        msg = {"kind": "error", "text": f"分组失败：{exc}"}
+
+    _sid, sess = get_session(request)
+    if sess:
+        sess["groups_notice"] = msg
+    return RedirectResponse(url="/groups", status_code=303)
+
+
+@app.post("/groups/assign")
+async def groups_assign(request: Request, csrf_token: str = Form(None)):
+    """把某个学生移到某个小组（group_id=0 表示移出小组）。"""
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    form = await request.form()
+    try:
+        sid = int(form.get("student_id") or 0)
+        gid = int(form.get("group_id") or 0)
+    except ValueError:
+        return JSONResponse({"ok": False, "error": "参数错误"})
+
+    db = connect_db()
+    try:
+        with db:
+            db.execute("UPDATE students SET group_id=? WHERE id=?", (gid, sid))
+    finally:
+        db.close()
+
+    return JSONResponse({"ok": True})
+
+
+@app.post("/groups/save")
+async def groups_save(request: Request, csrf_token: str = Form(None)):
+    """整页保存：按前端提交的结构重建小组与成员归属。
+
+    payload = {
+      "groups": [{"id": 0 或已有id, "name": "1 组", "members": [学生id...]}, ...],
+      "ungrouped": [学生id...]
+    }
+    """
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    form = await request.form()
+    raw = form.get("payload") or ""
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "提交的数据格式不对"})
+
+    groups = data.get("groups") or []
+    ungrouped = data.get("ungrouped") or []
+
+    if not isinstance(groups, list):
+        return JSONResponse({"ok": False, "error": "提交的数据格式不对"})
+
+    db = connect_db()
+    try:
+        with db:
+            keep_ids = []
+
+            for idx, g in enumerate(groups, start=1):
+                name = (g.get("name") or "").strip() or f"{idx} 组"
+                gid = int(g.get("id") or 0)
+                if gid:
+                    db.execute("UPDATE student_groups SET name=?, sort_order=? WHERE id=?",
+                               (name, idx, gid))
+                    keep_ids.append(gid)
+                else:
+                    cur = db.execute(
+                        "INSERT INTO student_groups (name, sort_order, created_at) VALUES (?, ?, ?)",
+                        (name, idx, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                    keep_ids.append(cur.lastrowid)
+
+            # 删掉本次没出现的组
+            if keep_ids:
+                placeholders = ",".join("?" * len(keep_ids))
+                db.execute(f"DELETE FROM student_groups WHERE id NOT IN ({placeholders})", keep_ids)
+            else:
+                db.execute("DELETE FROM student_groups")
+
+            # 先把所有人置为未分组，再按提交的归属重新分配（提交里的 id 是新组 id 时用索引对齐）
+            db.execute("UPDATE students SET group_id=0")
+
+            for idx, g in enumerate(groups):
+                gid = keep_ids[idx]
+                for sid in (g.get("members") or []):
+                    try:
+                        db.execute("UPDATE students SET group_id=? WHERE id=?", (gid, int(sid)))
+                    except (TypeError, ValueError):
+                        continue
+
+            for sid in ungrouped:
+                try:
+                    db.execute("UPDATE students SET group_id=0 WHERE id=?", (int(sid),))
+                except (TypeError, ValueError):
+                    continue
+    finally:
+        db.close()
+
+    integrity.audit("groups_save", f"保存分组：{len(groups)} 个小组", _client_ip(request))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/groups/rename")
+async def groups_rename(request: Request, csrf_token: str = Form(None)):
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    form = await request.form()
+    try:
+        gid = int(form.get("group_id") or 0)
+    except ValueError:
+        return JSONResponse({"ok": False, "error": "参数错误"})
+
+    name = (form.get("name") or "").strip()
+    if not gid or not name:
+        return JSONResponse({"ok": False, "error": "组名不能为空"})
+
+    db = connect_db()
+    try:
+        with db:
+            db.execute("UPDATE student_groups SET name=? WHERE id=?", (name, gid))
+    finally:
+        db.close()
+
+    return JSONResponse({"ok": True})
+
+
+@app.post("/groups/clear")
+def groups_clear(request: Request, csrf_token: str = Form(None)):
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    db = connect_db()
+    try:
+        with db:
+            db.execute("DELETE FROM student_groups")
+            db.execute("UPDATE students SET group_id=0")
+    finally:
+        db.close()
+
+    _sid, sess = get_session(request)
+    if sess:
+        sess["groups_notice"] = {"kind": "success", "text": "已清空分组"}
+    return RedirectResponse(url="/groups", status_code=303)
+
+
+@app.get("/groups/live", response_class=HTMLResponse)
+def groups_live_page(request: Request):
+    _require_login(request)
+    config = read_config()
+    db = connect_db()
+    try:
+        total = db.execute("SELECT COUNT(*) FROM students").fetchone()[0] or 0
+    finally:
+        db.close()
+
+    return render(request, "groups_live.html", {
+        "system_name": config["system"]["name"],
+        "total": total,
+    })
+
+
+@app.post("/groups/live/shuffle")
+async def groups_live_shuffle(request: Request, csrf_token: str = Form(None)):
+    """现场随机分组（结果不落库，只返回给页面展示）。"""
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    form = await request.form()
+    try:
+        count = int(form.get("count") or 2)
+    except ValueError:
+        count = 2
+    count = max(2, min(12, count))
+
+    buckets = random_partition(count)
+    return JSONResponse({
+        "ok": True,
+        "groups": [{"index": i + 1, "members": b} for i, b in enumerate(buckets)]
+    })
+
+
+@app.get("/students/list.json")
+def students_list_json(request: Request, q: str = ""):
+    """给班级叫号的下拉框用。"""
+    _require_login(request)
+    return JSONResponse({"ok": True, "students": list_students(q)[:200]})
+
+
+@app.get("/audit", response_class=HTMLResponse)
+def audit_page(request: Request):
+    """操作日志：谁在什么时候做了敏感操作。"""
+    _require_login(request)
+    lines = integrity.audit_tail(200)
+    rows = []
+    for ln in reversed(lines):
+        parts = ln.split("	")
+        while len(parts) < 4:
+            parts.append("")
+        rows.append({"time": parts[0], "event": parts[1], "ip": parts[2], "detail": parts[3]})
+
+    body = "".join(
+        f"<tr><td>{r['time']}</td><td>{r['event']}</td><td>{r['ip']}</td><td>{r['detail']}</td></tr>"
+        for r in rows) or "<tr><td colspan='4' style='text-align:center;color:#94a3b8'>暂无记录</td></tr>"
+
+    html = f"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>操作日志 · 班级管理系统</title>
+<link rel="stylesheet" href="/static/css/app.css?v={asset_version()}"></head>
+<body><div class="app-shell">
+<main class="page">
+  <div class="page-head"><h1 class="page-title">操作日志</h1>
+  <p class="page-desc">登录、改密码、导入、配置被外部修改等事件都会记在这里（data/audit.log）</p></div>
+  <section class="card">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="text-align:left;color:#64748b">
+        <th style="padding:8px 6px">时间</th><th>事件</th><th>来源 IP</th><th>说明</th></tr></thead>
+      <tbody>{body}</tbody>
+    </table>
+  </section>
+</main></div></body></html>"""
+    return HTMLResponse(html)
+
+
+@app.post("/integrity_reaccept")
+def integrity_reaccept(request: Request, csrf_token: str = Form(None)):
+    """用户确认「这个改动是我做的」后，重新签名当前状态。"""
+    check_csrf(request, csrf_token)
+    _require_login(request)
+    integrity.clear_alert()
+    integrity.audit("integrity_accept", "用户确认配置改动并重新签名", _client_ip(request))
+    return RedirectResponse(url="/setting", status_code=303)
+
+
 @app.post("/setting")
 async def submit_setting(request: Request, current_password: str = Form(...), password: str = Form(...),
                          csrf_token: str = Form(None)):

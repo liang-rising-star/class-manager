@@ -2736,3 +2736,24 @@ input[type="range"]::-moz-range-thumb {
 .sldr:active .sldr__knob {
   box-shadow: 0 0 0 5px var(--primary-ring);
 }
+
+/* ------------------------------ 文字选择 ------------------------------ */
+/* 界面默认不可选中文字（拖动/连点不会误选），输入框与可复制区域放开 */
+html,
+body,
+.app-shell {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+input,
+textarea,
+select,
+option,
+[contenteditable="true"],
+pre,
+code,
+.selectable {
+    -webkit-user-select: text;
+    user-select: text;
+}

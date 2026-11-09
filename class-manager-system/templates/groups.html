@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>小组分配 · {{ system_name }}</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+    <style>
+        .grp-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+        .grp-toolbar input[type="number"] {
+            width: 82px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
+            background: #fbfcfe; font: inherit; font-size: 13.5px; outline: none;
+        }
+        .grp-toolbar .spacer { flex: 1; }
+        .grp-hint { font-size: 12.5px; color: var(--text-muted); margin: 14px 0 4px; }
+        .grp-hint b { color: var(--primary); }
+
+        .grp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+        .grp-card {
+            border: 1px solid var(--border); border-radius: 14px; background: #fbfcfe;
+            padding: 14px 16px; min-height: 120px; transition: border-color .15s, background .15s;
+        }
+        .grp-card.is-drop { border-color: var(--primary); background: #eef4ff; }
+        .grp-card__head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .grp-card__name {
+            font-weight: 650; font-size: 14.5px; color: var(--text); background: transparent;
+            border: 1px solid transparent; border-radius: 8px; padding: 3px 8px; flex: 1; min-width: 0;
+            font-family: inherit;
+        }
+        .grp-card__name[readonly] { cursor: default; }
+        .grp-card__name:not([readonly]):hover { border-color: var(--border); background: #fff; }
+        .grp-card__name:not([readonly]):focus { border-color: var(--primary); background: #fff; outline: none; }
+        .grp-count { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+        .grp-members { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px; }
+        .grp-member {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 5px 10px; border-radius: 999px; background: #fff;
+            border: 1px solid var(--border); font-size: 13.5px; color: var(--text);
+        }
+        .grp-member .g { font-size: 11.5px; color: var(--text-muted); }
+        .grp-member .x {
+            border: 0; background: transparent; color: #cbd5e1; cursor: pointer;
+            font-size: 14px; line-height: 1; padding: 0 2px;
+        }
+        .grp-member .x:hover { color: #dc2626; }
+        .grp-member[draggable="true"] { cursor: grab; }
+        .grp-member.is-dragging { opacity: .4; }
+        .grp-member .handle { color: #cbd5e1; font-size: 11px; }
+
+        .grp-empty { font-size: 12.5px; color: var(--text-faint); padding: 10px 2px; }
+
+        .pool-card { margin-bottom: 16px; }
+        .pool-card.is-drop { border-color: var(--primary); }
+        .pool-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 40px; }
+
+        .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; }
+        .tag--boy { background: #eef4ff; color: #2563eb; }
+        .tag--girl { background: #fff0f6; color: #db2777; }
+
+        .grp-del {
+            border: 0; background: transparent; color: #cbd5e1; cursor: pointer;
+            padding: 2px 6px; border-radius: 6px; font-size: 14px;
+        }
+        .grp-del:hover { color: #dc2626; background: #fef2f2; }
+
+        .mode-tip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 10px; border-radius: 999px; font-size: 12.5px;
+        }
+        .mode-tip--view { background: #f1f5f9; color: #475569; }
+        .mode-tip--edit { background: #eef4ff; color: #1d4ed8; }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        {% set active_page = 'groups' %}
+        {% include "_sidebar.html" %}
+
+    <main class="page">
+        <div class="page-head">
+            <h1 class="page-title">小组分配</h1>
+            <p class="page-desc">把学生拖进小组或拖出来；点「编辑」才能改动，改完点「保存」</p>
+        </div>
+
+        {% if notice %}
+        <div class="alert alert-{{ 'success' if notice.kind == 'success' else 'error' }}">{{ notice.text }}</div>
+        {% endif %}
+
+        <section class="card">
+            <div class="grp-toolbar" style="margin-bottom:0">
+                <button type="button" class="btn btn-sm" id="toggleBtn">编辑</button>
+
+                <span id="editOnly" style="display:none;align-items:center;gap:10px">
+                    <button type="button" class="btn btn-ghost btn-sm" id="addGroupBtn">＋ 新建小组</button>
+                </span>
+
+                <span class="spacer"></span>
+                <span style="font-size:13px;color:var(--text-muted)">共 {{ total }} 名学生</span>
+            </div>
+            <div class="grp-hint" id="grpHint">点「编辑」后，可以拖动学生、改小组名、新建或删除小组。</div>
+        </section>
+
+        <section class="card pool-card" id="poolCard">
+            <div class="card-title">未分组（<span id="poolCount">{{ ungrouped|length }}</span>）</div>
+            <div class="pool-list" id="poolList">
+                {% for st in ungrouped %}
+                <span class="grp-member" data-student="{{ st.id }}">
+                    <span class="nm">{{ st.name }}</span>
+                    {% if st.gender == '男' %}<span class="tag tag--boy">男</span>{% elif st.gender == '女' %}<span class="tag tag--girl">女</span>{% endif %}
+                </span>
+                {% endfor %}
+            </div>
+        </section>
+
+        <div class="grp-grid" id="grpGrid">
+            {% for g in groups %}
+            <section class="grp-card" data-group="{{ g.id }}">
+                <div class="grp-card__head">
+                    <input class="grp-card__name" value="{{ g.name }}" data-name readonly>
+                    <span class="grp-count">{{ g.members|length }} 人</span>
+                    <button type="button" class="grp-del" title="删除小组" style="display:none">✕</button>
+                </div>
+                <ul class="grp-members">
+                    {% for st in g.members %}
+                    <li class="grp-member" data-student="{{ st.id }}">
+                        <span class="nm">{{ st.name }}</span>
+                        {% if st.gender == '男' %}<span class="tag tag--boy">男</span>{% elif st.gender == '女' %}<span class="tag tag--girl">女</span>{% endif %}
+                        <button type="button" class="x" title="移出小组" style="display:none">✕</button>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </section>
+            {% endfor %}
+        </div>
+
+        {% if not groups %}
+        <section class="card" id="emptyCard">
+            <div style="text-align:center;padding:36px;color:var(--text-muted);font-size:13.5px">
+                还没有小组。点「编辑」后，用「＋ 新建小组」建几个组，再把学生拖进去。
+            </div>
+        </section>
+        {% endif %}
+    </main>
+    </div>
+
+<script>
+(function () {
+    var csrf = {{ csrf_token|tojson }};
+    var grid = document.getElementById('grpGrid');
+    var poolList = document.getElementById('poolList');
+    var poolCard = document.getElementById('poolCard');
+    var poolCount = document.getElementById('poolCount');
+    var toggleBtn = document.getElementById('toggleBtn');
+    var editOnly = document.getElementById('editOnly');
+    var hint = document.getElementById('grpHint');
+    var emptyCard = document.getElementById('emptyCard');
+
+    // 「还没有小组」这块大白块：有组卡片就藏起来，没组再放回来
+    function syncEmptyCard() {
+        var has = document.querySelectorAll('.grp-card').length > 0;
+
+        if (has) {
+            if (emptyCard) { emptyCard.remove(); emptyCard = null; }
+            return;
+        }
+
+        if (!emptyCard) {
+            emptyCard = document.createElement('section');
+            emptyCard.className = 'card';
+            emptyCard.id = 'emptyCard';
+            emptyCard.innerHTML = '<div style="text-align:center;padding:36px;color:var(--text-muted);font-size:13.5px">' +
+                '还没有小组。点「编辑」后，用「＋ 新建小组」建几个组，再把学生拖进去。</div>';
+            grid.parentNode.insertBefore(emptyCard, grid.nextSibling);
+        }
+    }
+    var editing = false;
+    var dragEl = null;
+
+    function setEditing(on) {
+        editing = on;
+
+        toggleBtn.textContent = on ? '保存' : '编辑';
+        editOnly.style.display = on ? 'inline-flex' : 'none';
+
+        hint.innerHTML = on
+            ? '拖动学生到别的小组即可换组，拖到「未分组」就是移出；改完点 <b>保存</b>。'
+            : '点「编辑」后，可以拖动学生、改小组名、新建或删除小组。';
+
+        // 组名
+        document.querySelectorAll('.grp-card__name').forEach(function (inp) {
+            if (on) inp.removeAttribute('readonly'); else inp.setAttribute('readonly', '');
+        });
+
+        // 移出按钮 / 删除组按钮
+        document.querySelectorAll('.grp-member .x').forEach(function (b) {
+            b.style.display = on ? '' : 'none';
+        });
+        document.querySelectorAll('.grp-del').forEach(function (b) {
+            b.style.display = on ? '' : 'none';
+        });
+
+        // 可拖动
+        document.querySelectorAll('.grp-member').forEach(function (el) {
+            el.draggable = on;
+        });
+
+        // 每组底部提示
+        document.querySelectorAll('.grp-card').forEach(function (card) {
+            var empty = card.querySelector('.grp-empty');
+            if (on && !empty) {
+                var d = document.createElement('div');
+                d.className = 'grp-empty';
+                d.textContent = '把学生拖到这里';
+                card.appendChild(d);
+            } else if (!on && empty) {
+                empty.remove();
+            }
+        });
+    }
+
+    toggleBtn.onclick = function () {
+        if (!editing) { setEditing(true); return; }
+        doSave();
+    };
+
+    document.getElementById('addGroupBtn').onclick = function () {
+        var n = document.querySelectorAll('.grp-card').length + 1;
+        var card = document.createElement('section');
+        card.className = 'grp-card';
+        card.dataset.group = '0';
+        card.innerHTML =
+            '<div class="grp-card__head">' +
+                '<input class="grp-card__name" value="' + n + ' 组" data-name>' +
+                '<span class="grp-count">0 人</span>' +
+                '<button type="button" class="grp-del" title="删除小组">✕</button>' +
+            '</div>' +
+            '<ul class="grp-members"></ul>' +
+            '<div class="grp-empty">把学生拖到这里</div>';
+        grid.appendChild(card);
+        card.querySelector('[data-name]').focus();
+        card.querySelector('[data-name]').select();
+        bindCard(card);
+        refreshCounts();
+        syncEmptyCard();
+    };
+
+    // ---- 拖放 ----
+    function onDragStart(e) {
+        var el = e.target.closest('.grp-member');
+        if (!editing || !el) { e.preventDefault(); return; }
+        dragEl = el;
+        el.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', el.dataset.student); } catch (err) { }
+    }
+
+    function onDragEnd() {
+        if (dragEl) dragEl.classList.remove('is-dragging');
+        dragEl = null;
+        document.querySelectorAll('.is-drop').forEach(function (x) { x.classList.remove('is-drop'); });
+    }
+
+    function bindDropZone(zone, targetList) {
+        zone.addEventListener('dragover', function (e) {
+            if (!editing || !dragEl) return;
+            e.preventDefault();
+            zone.classList.add('is-drop');
+        });
+        zone.addEventListener('dragleave', function () { zone.classList.remove('is-drop'); });
+        zone.addEventListener('drop', function (e) {
+            if (!editing || !dragEl) return;
+            e.preventDefault();
+            zone.classList.remove('is-drop');
+            targetList.appendChild(dragEl);
+            refreshCounts();
+            syncEmptyHint();
+        });
+    }
+
+    function bindCard(card) {
+        var list = card.querySelector('.grp-members');
+        bindDropZone(card, list);
+
+        var del = card.querySelector('.grp-del');
+        if (del) {
+            del.onclick = function () {
+                var name = card.querySelector('[data-name]').value || '该小组';
+                var count = card.querySelectorAll('.grp-members .grp-member').length;
+
+                appConfirm({
+                    title: '删除小组',
+                    text: '确定删除「' + name + '」？' +
+                        (count ? '组里的 ' + count + ' 名学生马上回到「未分组」。' : ''),
+                    okText: '删除',
+                    danger: true
+                }).then(function (ok) {
+                    if (!ok) return;
+
+                    // 成员先放回未分组池，再移除这张卡片
+                    card.querySelectorAll('.grp-members .grp-member').forEach(function (li) {
+                        poolList.appendChild(li);
+                    });
+
+                    card.remove();
+                    refreshCounts();
+                    syncEmptyHint();
+                    syncEmptyCard();
+                });
+            };
+        }
+
+    }
+
+    // 移出小组：统一委托，卡片被拖动/重建后依然有效
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.grp-member .x');
+        if (!btn || !editing) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        var li = btn.closest('.grp-member');
+        if (!li) return;
+        poolList.appendChild(li);
+        refreshCounts();
+        syncEmptyHint();
+    });
+
+    document.querySelectorAll('.grp-card').forEach(bindCard);
+    bindDropZone(poolCard, poolList);
+
+    // 未分组里的学生也要能拖出去
+    poolList.querySelectorAll('.grp-member').forEach(function (el) {
+        el.addEventListener('dragstart', onDragStart);
+        el.addEventListener('dragend', onDragEnd);
+    });
+
+    // 新增的成员（拖动后）也要绑定拖拽事件：统一用委托
+    document.addEventListener('dragstart', onDragStart, true);
+    document.addEventListener('dragend', onDragEnd, true);
+
+    function refreshCounts() {
+        document.querySelectorAll('.grp-card').forEach(function (card) {
+            var n = card.querySelectorAll('.grp-members .grp-member').length;
+            var c = card.querySelector('.grp-count');
+            if (c) c.textContent = n + ' 人';
+        });
+        if (poolCount) poolCount.textContent = poolList.querySelectorAll('.grp-member').length;
+    }
+
+    function syncEmptyHint() {
+        document.querySelectorAll('.grp-card').forEach(function (card) {
+            var empty = card.querySelector('.grp-empty');
+            var has = card.querySelectorAll('.grp-members .grp-member').length > 0;
+            if (editing && !has && !empty) {
+                var d = document.createElement('div');
+                d.className = 'grp-empty';
+                d.textContent = '把学生拖到这里';
+                card.appendChild(d);
+            } else if (has && empty) {
+                empty.remove();
+            }
+        });
+    }
+
+    // ---- 保存 ----
+    function doSave() {
+        var groups = [];
+        document.querySelectorAll('.grp-card').forEach(function (card) {
+            var members = [];
+            card.querySelectorAll('.grp-members .grp-member').forEach(function (li) {
+                members.push(parseInt(li.dataset.student, 10));
+            });
+            groups.push({
+                id: parseInt(card.dataset.group || '0', 10) || 0,
+                name: (card.querySelector('[data-name]').value || '').trim(),
+                members: members
+            });
+        });
+
+        var ungrouped = [];
+        poolList.querySelectorAll('.grp-member').forEach(function (li) {
+            ungrouped.push(parseInt(li.dataset.student, 10));
+        });
+
+        var fd = new FormData();
+        fd.append('csrf_token', csrf);
+        fd.append('payload', JSON.stringify({ groups: groups, ungrouped: ungrouped }));
+
+        toggleBtn.disabled = true;
+        fetch('/groups/save', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                toggleBtn.disabled = false;
+                if (!res.ok) { appAlert({ title: '保存失败', text: res.error || '' }); return; }
+                location.reload();   // 刷新后回到只读状态，按钮变回「编辑」
+            })
+            .catch(function (err) {
+                toggleBtn.disabled = false;
+                appAlert({ title: '保存失败', text: String(err) });
+            });
+    }
+
+    setEditing(false);
+    refreshCounts();
+    syncEmptyCard();
+})();
+</script>
+</body>
+</html>

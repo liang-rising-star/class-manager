@@ -25,22 +25,109 @@
         .c-name {
             width: 100%; padding: 14px 16px; font-size: 17px; border-radius: 12px;
             border: 1px solid var(--border); background: #fbfcfe; font-family: inherit;
-            outline: none; margin-bottom: 14px;
+            outline: none;
         }
         .c-name:focus { border-color: var(--primary); background: #fff; }
 
-        .c-tpl { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
-        .c-tpl button { border-radius: 999px; }
+        /* 学生下拉 */
+        .stu-drop {
+            position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% - 6px);
+            background: #fff; border: 1px solid var(--border); border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, .12);
+            padding: 8px; max-height: 300px; overflow: auto;
+        }
+        .stu-drop__hint { font-size: 12px; color: var(--text-faint); padding: 2px 8px 6px; }
+        .stu-item {
+            display: flex; align-items: center; gap: 10px; width: 100%;
+            padding: 8px 10px; border: 0; border-radius: 8px; background: transparent;
+            font: inherit; font-size: 13.5px; color: var(--text); cursor: pointer; text-align: left;
+        }
+        .stu-item:hover, .stu-item.is-hot { background: #eef4ff; }
+        .stu-item .nm { font-weight: 600; }
+        .stu-item .meta { color: var(--text-muted); font-size: 12.5px; }
+        .stu-drop__empty { padding: 10px; font-size: 13px; color: var(--text-muted); text-align: center; }
+        .stu-drop__manage {
+            display: block; margin-top: 6px; padding: 8px; text-align: center;
+            font-size: 12.5px; color: var(--primary); text-decoration: none;
+            border-top: 1px solid var(--border);
+        }
+        .stu-drop__manage:hover { text-decoration: underline; }
+
+        /* 话术卡片 */
+        .c-tpl-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+            gap: 10px;
+        }
+        .c-tpl {
+            text-align: left; padding: 12px 14px; border-radius: 12px;
+            border: 1px solid var(--border); background: #fbfcfe; cursor: pointer;
+            font: inherit; color: var(--text); transition: border-color .15s, background .15s;
+        }
+        .c-tpl:hover { border-color: var(--border-strong); background: #fff; }
+        .c-tpl__title { font-size: 13.5px; font-weight: 600; display: block; margin-bottom: 4px; }
+        .c-tpl__sub { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+        .c-tpl.is-on {
+            border-color: var(--primary); background: #eef4ff;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, .12);
+        }
+        .c-tpl.is-on .c-tpl__title { color: var(--primary); }
+
+        .c-extra { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+        .c-extra > div { flex: 1; min-width: 180px; }
+        .modal select {
+            width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+            border-radius: 10px; background: #fbfcfe; font: inherit; font-size: 13.5px;
+            outline: none;
+        }
+        .modal select:focus { border-color: var(--primary); background: #fff; }
+
+        .c-extra select {
+            width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+            border-radius: 10px; background: #fbfcfe; font: inherit; font-size: 13.5px;
+            outline: none;
+        }
+        .c-extra select:focus { border-color: var(--primary); background: #fff; }
+
+        .c-extra input, .c-extra textarea {
+            width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+            border-radius: 10px; background: #fbfcfe; font: inherit; font-size: 13.5px;
+            outline: none; resize: vertical;
+        }
+        .c-extra input:focus, .c-extra textarea:focus { border-color: var(--primary); background: #fff; }
+
+        /* .field label 会把 label 变成 block，这里给开关单独提权，避免开关塌成一个小圆点 */
+        .field label.switch {
+            display: flex; align-items: center; justify-content: space-between; gap: 16px;
+            margin-bottom: 10px; padding: 14px 16px;
+            border: 1px solid var(--border); border-radius: 12px;
+            background: #fbfcfe; cursor: pointer;
+        }
+        .field label.switch:hover { border-color: var(--border-strong); }
+        .field label.switch .switch__text {
+            display: flex; flex-direction: column; gap: 2px;
+            font-size: 14px; font-weight: 400; color: var(--text); margin: 0;
+        }
+        .field label.switch .switch__track { display: block; flex: 0 0 auto; }
 
         .c-preview {
             background: #f6f8fc; border-radius: 12px; padding: 14px 16px; font-size: 15px;
-            color: var(--text-strong); margin-bottom: 18px; min-height: 22px;
+            color: var(--text-strong); min-height: 22px; line-height: 1.6;
+            /* 保留换行，长句自动断行 */
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
-
         .c-log { list-style: none; padding: 0; margin: 18px 0 0; font-size: 13px; color: var(--text-muted); }
-        .c-log li { padding: 8px 0; border-top: 1px solid var(--border); }
+        .c-log li {
+            padding: 8px 0; border-top: 1px solid var(--border);
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.6;
+        }
         .c-log b { color: var(--text-strong); }
         .c-empty { text-align: center; padding: 50px 20px; color: var(--text-muted); }
+        .c-hint { font-size: 12px; color: var(--text-faint); margin-top: 6px; }
     </style>
 </head>
 <body>
@@ -51,7 +138,7 @@
     <main class="page">
         <div class="page-head">
             <h1 class="page-title">班级叫号</h1>
-            <p class="page-desc">选择教室后，一体机会用教室音箱播报</p>
+            <p class="page-desc">选择教室 → 填学生姓名 → 挑一句要说的话，一体机会用教室音箱念出来</p>
         </div>
 
         <div id="cEmpty" class="card c-empty" hidden>
@@ -68,13 +155,24 @@
 
             <div class="c-sep"></div>
 
-            <input type="text" id="cName" class="c-name" placeholder="姓名或学号，例如：张三 / 25">
+            <div class="field" style="position:relative">
+                <label class="field-label">学生姓名 / 学号</label>
+                <input type="text" id="cName" class="c-name" autocomplete="off"
+                       placeholder="点一下从名单里选，或直接输入姓名/学号">
 
-            <div class="c-tpl" id="cTpl">
-                <button class="btn btn-ghost btn-sm is-on" data-tpl="{name}同学，请到讲台来">请到讲台</button>
-                <button class="btn btn-ghost btn-sm" data-tpl="请{name}同学准备回答">准备回答</button>
-                <button class="btn btn-ghost btn-sm" data-tpl="{name}同学，请把作业交到办公室">交作业</button>
-                <button class="btn btn-ghost btn-sm" data-tpl="{name}家长，请到校门口接孩子">家长接送</button>
+                <div class="stu-drop" id="stuDrop" hidden>
+                    <div class="stu-drop__hint">从名单里选：</div>
+                    <div class="stu-list" id="stuList"></div>
+                    <div class="stu-drop__empty" id="stuEmpty" hidden>名单里没有匹配的学生</div>
+                    <a class="stu-drop__manage" href="/students" target="_blank">管理学生名单 →</a>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="field-label">要说什么</label>
+                <div class="c-tpl-grid" id="cTplGrid"></div>
+
+                <div class="c-extra" id="cExtra"></div>
             </div>
 
             <div class="field">
@@ -82,15 +180,70 @@
                 <div class="c-preview" id="cPreview">—</div>
             </div>
 
-            <div class="field">
-                <label class="field-label">语速 <span id="cRateVal">0</span></label>
-                <input type="range" id="cRate" min="-6" max="6" step="1" value="0" style="width:100%">
+            <div class="field" id="cVolumePage">
+                <label class="field-label">播报音量 <span id="cVolumeVal">70</span></label>
+                <input type="range" id="cVolume" min="0" max="100" step="5" value="70" style="width:100%">
             </div>
 
-            <div class="c-bar">
+            <div class="c-bar" style="margin-bottom:0">
                 <button class="btn" id="cCallBtn">开始叫号</button>
                 <button class="btn btn-ghost" id="cStopBtn">停止播报</button>
+                <span class="spacer"></span>
+                <button class="btn btn-ghost" id="cSpeakSettings">播报设置</button>
             </div>
+
+            <dialog id="speakDlg" class="modal" style="width:min(480px,calc(100vw - 40px))">
+                <form id="speakForm" class="modal__body">
+                    <h3 class="modal__title">播报设置</h3>
+                    <p class="modal__text">这些设置保存在该一体机上，播报时生效</p>
+
+                    <label class="switch">
+                        <span class="switch__text">
+                            播报前提示音
+                            <span class="switch__hint">先说「叮咚」，提醒教室注意</span>
+                        </span>
+                        <input type="checkbox" id="cChimeBefore">
+                        <span class="switch__track"></span>
+                    </label>
+
+                    <label class="switch">
+                        <span class="switch__text">
+                            播报后提示音
+                            <span class="switch__hint">念完再响一声，表示结束</span>
+                        </span>
+                        <input type="checkbox" id="cChimeAfter">
+                        <span class="switch__track"></span>
+                    </label>
+
+                    <label class="switch">
+                        <span class="switch__text">
+                            播报时自动调整音量
+                            <span class="switch__hint">开播前把一体机系统音量调到下面这个值，播完还原</span>
+                        </span>
+                        <input type="checkbox" id="cVolumeOn">
+                        <span class="switch__track"></span>
+                    </label>
+
+                    <div class="field" style="margin-top:4px">
+                        <label class="field-label">语速 <span id="cRateVal">0</span></label>
+                        <input type="range" id="cRate" min="-6" max="6" step="1" value="0" style="width:100%">
+                    </div>
+
+                    <div class="field">
+                        <label class="field-label">提示音音效</label>
+                        <select id="cChimeId">
+                            <option value="airup">客舱广播·低沉版（默认）</option>
+                            <option value="air">客舱广播·标准</option>
+                            <option value="cabin">客舱广播（真实钟声）</option>
+                        </select>
+                    </div>
+
+                    <div class="modal__actions">
+                        <button type="button" class="btn btn-ghost" id="cSpeakCancel">取消</button>
+                        <button type="submit" class="btn">保存</button>
+                    </div>
+                </form>
+            </dialog>
 
             <ul class="c-log" id="cLog"></ul>
         </section>
@@ -107,7 +260,6 @@
     var panelEl = document.getElementById('cPanel');
     var sel = document.getElementById('cDevice');
     var current = null;
-    var tpl = '{name}同学，请到讲台来';
 
     if (!devices.length) { emptyEl.hidden = false; return; }
     panelEl.hidden = false;
@@ -123,12 +275,18 @@
     sel.value = current.id;
     sel.addEventListener('change', function () {
         current = devices.filter(function (d) { return d.id === sel.value; })[0] || null;
+        speakLoaded = false;
+        speakState = null;
+        document.getElementById('cChimeBefore').checked = false;
+        document.getElementById('cChimeAfter').checked = false;
+        document.getElementById('cChimeId').value = 'airup';
         refreshPill();
+        loadSpeak();
     });
 
     function refreshPill() {
         if (!current) return;
-        fetch('/device/' + current.id + '/status')
+        fetch('/device/' + current.id + '/status?t=' + Date.now())
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (st) {
                 if (!st) return;
@@ -136,45 +294,252 @@
                 var online = st.reachable || (st.video && st.video.online);
                 pill.className = 'status-pill ' + (online ? 'status-pill--ok' : 'status-pill--bad');
                 pill.textContent = online ? '在线' : (st.error ? '连接失败' : '离线');
+
             })
             .catch(function () { });
     }
 
-    // 话术
-    Array.prototype.forEach.call(document.querySelectorAll('#cTpl button'), function (b) {
-        b.onclick = function () {
-            Array.prototype.forEach.call(document.querySelectorAll('#cTpl button'), function (x) {
-                x.classList.remove('is-on');
-            });
-            b.classList.add('is-on');
-            tpl = b.getAttribute('data-tpl');
-            updatePreview();
-        };
+    // 读取一体机上的播报设置（缓存起来，打开弹窗时回填）
+    var speakState = null;
+
+    function loadSpeak() {
+        if (!current) return;
+        fetch('/device/' + current.id + '/status?t=' + Date.now())
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (st) {
+                var sp = st && st.detail && st.detail.speak;
+                if (!sp) return;
+                speakState = sp;
+                speakLoaded = true;
+                fillSpeakForm();
+            })
+            .catch(function () { });
+    }
+
+    function fillSpeakForm() {
+        if (!speakState) return;
+        var sp = speakState;
+
+        document.getElementById('cChimeBefore').checked = !!sp.chimeBefore;
+        document.getElementById('cChimeAfter').checked = !!sp.chimeAfter;
+
+        var vol = (typeof sp.volume === 'number') ? sp.volume : -1;
+        document.getElementById('cVolumeOn').checked = vol >= 0;
+
+        var slider = document.getElementById('cVolume');
+        if (vol >= 0) {
+            slider.value = vol;
+            document.getElementById('cVolumeVal').textContent = vol;
+        }
+
+        if (sp.chimeId) document.getElementById('cChimeId').value = sp.chimeId;
+
+        toggleVolumeBox();
+
+        if (window.initSlider) initSlider(slider);
+    }
+
+    // ---------------- 话术模板 ----------------
+    // {name} 会被替换成学生姓名；带 input 的模板会多出一个输入框
+    var TEMPLATES = [
+        {
+            id: 'office',
+            title: '去老师办公室',
+            sub: '{name}同学，请到某老师办公室',
+            extra: { key: 'teacher', label: '哪位老师', placeholder: '例如：王', default: '班主任' },
+            build: function (v) {
+                return v.name + '同学，请到' + (v.teacher || '班主任') + '老师办公室';
+            }
+        },
+        {
+            id: 'parent',
+            title: '家长在校门口',
+            sub: '{name}同学，你的家长到了，请前往校门口',
+            build: function (v) {
+                return v.name + '同学，你的家长到了，请前往校门口';
+            }
+        },
+        {
+            id: 'homework',
+            title: '交作业',
+            sub: '{name}同学，请交某科作业',
+            extra: { key: 'subject', label: '哪一科', placeholder: '例如：语文', default: '语文' },
+            build: function (v) {
+                return v.name + '同学，请交' + (v.subject || '') + '作业';
+            }
+        },
+        {
+            id: 'custom',
+            title: '完全自定义',
+            sub: '自己写整句，用 {name} 代表学生姓名',
+            custom: true
+        }
+    ];
+
+    var state = { tplId: 'office', teacher: '班主任', subject: '语文', custom: '' };
+
+    var grid = document.getElementById('cTplGrid');
+    var extra = document.getElementById('cExtra');
+
+    TEMPLATES.forEach(function (t) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'c-tpl';
+        b.dataset.id = t.id;
+        b.innerHTML = '<span class="c-tpl__title">' + esc(t.title) + '</span>' +
+                      '<span class="c-tpl__sub">' + esc(t.sub.replace('{name}', '某某')) + '</span>';
+        b.onclick = function () { selectTemplate(t.id); };
+        grid.appendChild(b);
     });
 
-    document.getElementById('cName').addEventListener('input', updatePreview);
+    function currentTpl() {
+        return TEMPLATES.filter(function (t) { return t.id === state.tplId; })[0] || TEMPLATES[0];
+    }
+
+    function selectTemplate(id) {
+        state.tplId = id;
+
+        Array.prototype.forEach.call(grid.children, function (el) {
+            el.classList.toggle('is-on', el.dataset.id === id);
+        });
+
+        var t = currentTpl();
+        extra.innerHTML = '';
+
+        if (t.custom) {
+            extra.innerHTML = '<div><label class="field-label">自定义内容</label>' +
+                '<textarea id="cTplText" rows="3" placeholder="例如：{name}同学，请到门卫室领取你的快递"></textarea>' +
+                '<div class="c-hint">用 {name} 表示学生姓名，会替换成上面填的名字</div></div>';
+            var ta = document.getElementById('cTplText');
+            ta.value = state.custom;
+            ta.addEventListener('input', function () { state.custom = ta.value; updatePreview(); });
+        } else if (t.extra) {
+            extra.innerHTML = '<div><label class="field-label">' + esc(t.extra.label) + '</label>' +
+                '<input type="text" id="cTplExtra" placeholder="' + esc(t.extra.placeholder) + '"></div>';
+            var inp = document.getElementById('cTplExtra');
+            inp.value = state[t.extra.key] || t.extra.default || '';
+            inp.addEventListener('input', function () { state[t.extra.key] = inp.value; updatePreview(); });
+        }
+
+        updatePreview();
+        var nameInput = document.getElementById('cName');
+        if (!nameInput.value) nameInput.focus();
+    }
+
+    function studentName() {
+        return document.getElementById('cName').value.trim();
+    }
+
+    function buildSentence() {
+        var name = studentName() || '某某';
+        var t = currentTpl();
+
+        if (t.custom) {
+            var text = (state.custom || '').trim();
+            if (!text) return '';
+
+            // 自定义模式不强制填姓名：填了就把 {name} 换成姓名，没填就把占位符去掉
+            var real = studentName();
+            if (!real) return text.replace(/\{name\}/g, '').replace(/\s{2,}/g, ' ').trim();
+            return text.replace(/\{name\}/g, real);
+        }
+
+        var v = { name: name, teacher: state.teacher, subject: state.subject };
+        return t.build(v);
+    }
+
+    function updatePreview() {
+        var sentence = buildSentence();
+        document.getElementById('cPreview').textContent =
+            sentence || '（选一句话术，或自定义模式下填写内容）';
+    }
+
+    // ---- 学生名单下拉 ----
+    var stuCache = null;
+    var stuDrop = document.getElementById('stuDrop');
+    var stuList = document.getElementById('stuList');
+    var stuEmpty = document.getElementById('stuEmpty');
+
+    function loadStudents() {
+        if (stuCache) { renderStudents(); return; }
+        fetch('/students/list.json').then(function (r) { return r.json(); })
+            .then(function (data) {
+                stuCache = (data && data.students) || [];
+                renderStudents();
+            })
+            .catch(function () { stuCache = []; renderStudents(); });
+    }
+
+    function renderStudents() {
+        var q = (document.getElementById('cName').value || '').trim().toLowerCase();
+        var rows = (stuCache || []).filter(function (st) {
+            if (!q) return true;
+            return (st.name || '').toLowerCase().indexOf(q) >= 0 ||
+                   (st.number || '').toLowerCase().indexOf(q) >= 0 ||
+                   false;
+        }).slice(0, 60);
+
+        stuList.innerHTML = '';
+        rows.forEach(function (st) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'stu-item';
+            b.innerHTML = '<span class="nm">' + esc(st.name) + '</span>' +
+                          (st.gender ? '<span class="meta">' + esc(st.gender) + '</span>' : '') +
+                          (st.number ? '<span class="meta">学号 ' + esc(st.number) + '</span>' : '');
+            b.onclick = function () {
+                document.getElementById('cName').value = st.name;
+                closeDrop();
+                updatePreview();
+            };
+            stuList.appendChild(b);
+        });
+
+        stuEmpty.hidden = rows.length > 0;
+        stuDrop.hidden = false;
+    }
+
+    function closeDrop() { stuDrop.hidden = true; }
+
+    var nameInput = document.getElementById('cName');
+    nameInput.addEventListener('focus', function () { loadStudents(); });
+    nameInput.addEventListener('input', function () {
+        updatePreview();
+        loadStudents();
+    });
+    nameInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { closeDrop(); return; }
+        if (e.key === 'Enter' && !stuDrop.hidden) {
+            var first = stuList.querySelector('.stu-item');
+            if (first) { e.preventDefault(); first.click(); }
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!stuDrop.hidden && !e.target.closest('#cName') && !e.target.closest('#stuDrop')) {
+            closeDrop();
+        }
+    });
 
     if (window.initSlider) initSlider(document.getElementById('cRate'));
     document.getElementById('cRate').addEventListener('input', function () {
         document.getElementById('cRateVal').textContent = this.value;
     });
 
-    function text() {
-        var n = document.getElementById('cName').value.trim();
-        return tpl.replace('{name}', n || '同学');
-    }
+    if (window.initSlider) initSlider(document.getElementById('cVolume'));
+    document.getElementById('cVolume').addEventListener('input', function () {
+        document.getElementById('cVolumeVal').textContent = this.value;
+    });
+    document.getElementById('cVolume').addEventListener('change', saveSpeakSettings);
 
-    function updatePreview() {
-        var n = document.getElementById('cName').value.trim();
-        document.getElementById('cPreview').textContent = n ? text() : '（先输入姓名或学号）';
-    }
-
+    // ---------------- 下发 ----------------
     function action(act, payload) {
         var body = new URLSearchParams();
         body.set('action', act);
         body.set('csrf_token', csrf);
         body.set('text', (payload && payload.text) || '');
         body.set('command', '');
+        if (payload && typeof payload.rate === 'number') body.set('rate', payload.rate);
         return fetch('/device/' + current.id + '/action', {
             method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
         }).then(function (r) { return r.json(); });
@@ -182,12 +547,27 @@
 
     document.getElementById('cCallBtn').onclick = function () {
         if (!current) return;
-        var content = text();
-        action('speak', { text: content }).then(function (res) {
-            log((current.name || current.host) + ' · ' + content, res && res.ok);
+
+        var tpl = currentTpl();
+        if (!tpl.custom && !studentName()) {
+            document.getElementById('cName').focus();
+            log('先填一下学生姓名', false);
+            return;
+        }
+
+        var sentence = buildSentence();
+        if (!sentence) {
+            log('这句话还没写完', false);
+            return;
+        }
+
+        var rate = parseInt(document.getElementById('cRate').value, 10) || 0;
+        action('speak', { text: sentence, rate: rate }).then(function (res) {
+            log((current.name || current.host) + ' · ' + sentence, res && res.ok);
         }).catch(function () {
-            log((current.name || current.host) + ' · 发送失败', false);
+            log('发送失败', false);
         });
+
         document.getElementById('cName').value = '';
         updatePreview();
     };
@@ -197,6 +577,56 @@
         action('speak_stop');
         log('已请求停止播报', true);
     };
+
+    // ---- 播报设置弹窗 ----
+    var speakDlg = document.getElementById('speakDlg');
+    var speakForm = document.getElementById('speakForm');
+
+    // 开关关掉 → 主界面的音量条直接消失；打开 → 重新出现
+    function toggleVolumeBox() {
+        var on = document.getElementById('cVolumeOn').checked;
+        var box = document.getElementById('cVolumePage');
+        if (box) box.style.display = on ? 'block' : 'none';
+    }
+
+    document.getElementById('cSpeakSettings').onclick = function () {
+        if (!current) return;
+        fillSpeakForm();
+        speakDlg.showModal();
+    };
+
+    document.getElementById('cSpeakCancel').onclick = function () { speakDlg.close(); };
+
+    document.getElementById('cVolumeOn').addEventListener('change', toggleVolumeBox);
+
+    function saveSpeakSettings() {
+        if (!current || !speakLoaded) return;
+
+        var body = new URLSearchParams();
+        body.set('csrf_token', csrf);
+        body.set('chime_before', document.getElementById('cChimeBefore').checked ? '1' : '0');
+        body.set('chime_after', document.getElementById('cChimeAfter').checked ? '1' : '0');
+        body.set('chime_id', document.getElementById('cChimeId').value);
+        body.set('speak_volume', document.getElementById('cVolumeOn').checked
+            ? document.getElementById('cVolume').value : '-1');
+
+        return fetch('/device/' + current.id + '/settings', {
+            method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (r) { return r.json(); });
+    }
+
+    speakForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!current) return;
+
+        saveSpeakSettings().then(function () {
+            speakDlg.close();
+            log('播报设置已保存', true);
+            loadSpeak();
+        }).catch(function (err) {
+            log('播报设置保存失败：' + err, false);
+        });
+    });
 
     function log(msg, ok) {
         var ul = document.getElementById('cLog');
@@ -214,8 +644,9 @@
         });
     }
 
-    updatePreview();
+    selectTemplate('office');
     refreshPill();
+    loadSpeak();
     setInterval(refreshPill, 4000);
 })();
 </script>

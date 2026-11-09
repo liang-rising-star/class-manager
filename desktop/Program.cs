@@ -732,7 +732,8 @@ internal sealed class MainForm : Form
         var area = screen.WorkingArea;
 
         var width = Math.Max(900, (int)(area.Width * 0.86));
-        var height = Math.Max(620, (int)(area.Height * 0.86));
+        // 高度多留一点：侧边栏底部的「收起菜单」贴着下沿，太紧会被裁掉
+        var height = Math.Min(area.Height - 24, Math.Max(660, (int)(area.Height * 0.86) + 20));
 
         MinimumSize = new Size(880, 600);
         StartPosition = FormStartPosition.Manual;

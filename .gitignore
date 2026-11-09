@@ -51,3 +51,7 @@ _patch_*.py
 _chk.js
 _snip.js
 _dump*.txt
+
+# 临时截图与调试产物
+browser-screenshots/
+*.tmp

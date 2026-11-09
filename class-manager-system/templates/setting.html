@@ -51,6 +51,24 @@ window.SOUND_SETTINGS = { ok: "{{ sound_ok }}", fail: "{{ sound_fail }}" };</scr
         <div class="alert alert-{{ 'success' if notice.kind == 'success' else ('error' if notice.kind == 'error' else 'info') }}">{{ notice.text }}</div>
         {% endif %}
 
+        {% if integrity_alert %}
+        <div class="alert alert-error" style="margin-bottom:16px">
+            <b>配置文件被外部修改过</b>
+            <div style="margin-top:6px;font-size:13px">
+                检测到 {{ integrity_alert|join('、') }} 的内容和应用记录不一致。
+                如果不是你通过本页面改的，说明有人直接改了 data 目录里的文件
+                （例如替换管理员口令哈希、改设备地址）。
+            </div>
+            <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+                <a class="btn btn-ghost btn-sm" href="/audit">查看操作日志</a>
+                <form method="post" action="/integrity_reaccept" style="margin:0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-ghost btn-sm">我确认过，重新记录当前状态</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="card" id="desktop-card">
             <div class="card-title">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1062,8 +1080,14 @@ window.SOUND_SETTINGS = { ok: "{{ sound_ok }}", fail: "{{ sound_fail }}" };</scr
                 '<button type="button" class="btn btn-danger btn-sm" data-del>删除</button>';
 
             row.querySelector('[data-edit]').onclick = function () { fill(d); };
-            row.querySelector('[data-del]').onclick = function () {
-                if (!confirm('删除设备「' + (d.name || d.host) + '」？')) return;
+            row.querySelector('[data-del]').onclick = async function () {
+                var okDel = await appConfirm({
+                    title: '删除设备',
+                    text: '确定删除设备「' + (d.name || d.host) + '」？',
+                    okText: '删除',
+                    danger: true
+                });
+                if (!okDel) return;
                 post('/devices/delete', { device_id: d.id }).then(reload);
             };
 

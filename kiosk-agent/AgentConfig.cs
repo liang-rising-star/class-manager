@@ -32,6 +32,21 @@ namespace ClassManager.KioskAgent
     }
 
     /// <summary>远程指令授权</summary>
+    public class SpeakSettings
+    {
+        /// <summary>播报前响一声（提示要开始念了）</summary>
+        public bool ChimeBefore { get; set; } = true;
+
+        /// <summary>播报后响一声（提示念完了）</summary>
+        public bool ChimeAfter { get; set; } = false;
+
+        /// <summary>提示音音效：cabin / air / airup（默认低沉版）</summary>
+        public string ChimeId { get; set; } = "airup";
+
+        /// <summary>播报时自动把系统音量调到该值（0-100）；-1 表示不调整</summary>
+        public int Volume { get; set; } = 70;
+    }
+
     public class RemoteSettings
     {
         /// <summary>是否授权教师端远程执行指令（默认关闭）</summary>
@@ -64,6 +79,8 @@ namespace ClassManager.KioskAgent
         public CameraSettings Camera { get; set; } = new CameraSettings();
         public MicSettings Mic { get; set; } = new MicSettings();
         public RemoteSettings Remote { get; set; } = new RemoteSettings();
+
+        public SpeakSettings Speak { get; set; } = new SpeakSettings();
 
         [JsonIgnore]
         public bool HasPassword => !string.IsNullOrEmpty(PasswordHash) && !string.IsNullOrEmpty(PasswordSalt);
