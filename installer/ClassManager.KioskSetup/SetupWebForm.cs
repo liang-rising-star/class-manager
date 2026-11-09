@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -20,7 +20,7 @@ public sealed class SetupWebForm : Form
     public SetupWebForm()
     {
         Text = Program.AppName + " 安装程序";
-        ClientSize = new Size(720, 780);
+        ClientSize = new Size(720, 882);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
