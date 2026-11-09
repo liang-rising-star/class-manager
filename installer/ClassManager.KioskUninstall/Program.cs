@@ -10,7 +10,16 @@ internal static class Program
     public const string AppName = "班级管理系统 · 一体机端";
     public const string KioskExe = "class-manager-kiosk.exe";
     public const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\class-manager-kiosk";
+    /// <summary>安装程序写入的自启项名</summary>
     public const string RunValue = "class-manager-kiosk";
+
+    /// <summary>一体机端自己在设置里写进去的自启项名</summary>
+    public const string RunValueAgent = "ClassManagerKioskAgent";
+
+    /// <summary>一体机端在 %LOCALAPPDATA% 下的配置/日志/WebView2 缓存目录</summary>
+    public static string LocalDataDir => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "ClassManager-KioskAgent");
 
     [STAThread]
     private static int Main(string[] args)
@@ -80,9 +89,15 @@ internal static class Uninstaller
         progress?.Invoke(45, "正在删除快捷方式…");
         RemoveShortcuts();
 
+        progress?.Invoke(52, "正在清理设备缓存与配置…");
+        CleanLocalData();
+
         progress?.Invoke(58, "正在删除卸载登记…");
         try { Registry.CurrentUser.DeleteSubKeyTree(Program.UninstallKey, throwOnMissingSubKey: false); }
         catch { }
+
+        // 顺手清掉厂商根键（如果已经没有其它子项）
+        CleanVendorKey();
 
         progress?.Invoke(70, "正在删除程序文件…");
 
@@ -108,6 +123,8 @@ internal static class Uninstaller
         }
 
         DeleteTree(dir);
+        CleanTempFiles();
+
         progress?.Invoke(100, "卸载完成");
     }
 
@@ -230,13 +247,118 @@ internal static class Uninstaller
         return m.Success && int.TryParse(m.Groups[1].Value, out var v) ? v : 0;
     }
 
+    /// <summary>
+    /// 清掉设备上留下的信息：%LOCALAPPDATA%\ClassManager-KioskAgent
+    /// 里面有 config.json（访问密码、设备名、密钥）、agent.log、以及三个 WebView2 缓存目录。
+    /// 删不掉（被占用）就挂到重启后删除，保证不会留下残留。
+    /// </summary>
+    private static void CleanLocalData()
+    {
+        var dir = Program.LocalDataDir;
+        if (!Directory.Exists(dir)) return;
+
+        for (var i = 0; i < 5; i++)
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+                return;
+            }
+            catch
+            {
+                Thread.Sleep(500);
+            }
+        }
+
+        // 仍被占用：逐个文件挂到重启后删除
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+            {
+                try { DeleteOnReboot(file); } catch { }
+            }
+
+            foreach (var sub in Directory.EnumerateDirectories(dir, "*", SearchOption.AllDirectories))
+            {
+                try { DeleteOnReboot(sub); } catch { }
+            }
+
+            DeleteOnReboot(dir);
+        }
+        catch { }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool MoveFileExW(string existing, string? newName, uint flags);
+
+    private static void DeleteOnReboot(string path) =>
+        MoveFileExW(path, null, 0x00000004 /* MOVEFILE_DELAY_UNTIL_REBOOT */);
+
+    /// <summary>清掉安装/卸载过程在 %TEMP% 留下的临时文件与日志。</summary>
+    private static void CleanTempFiles()
+    {
+        try
+        {
+            var temp = Path.GetTempPath();
+
+            foreach (var file in Directory.EnumerateFiles(temp, "class-manager-kiosk-setup.log"))
+            {
+                try { File.Delete(file); } catch { }
+            }
+
+            foreach (var dir in Directory.EnumerateDirectories(temp, "class-manager-kiosk-setup-*"))
+            {
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch
+                {
+                    try
+                    {
+                        foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+                            DeleteOnReboot(f);
+                        DeleteOnReboot(dir);
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 删 HKCU\Software\liang-rising-star 下本程序留下的空子项；
+    /// 该根键下还有别的产品的子项时不动。
+    /// </summary>
+    private static void CleanVendorKey()
+    {
+        const string vendor = @"Software\liang-rising-star";
+
+        try
+        {
+            using (var key = Registry.CurrentUser.OpenSubKey(vendor))
+            {
+                if (key is null) return;
+                if (key.SubKeyCount > 0) return;      // 还有别的产品，保留
+                if (key.ValueCount > 0) return;
+            }
+
+            Registry.CurrentUser.DeleteSubKeyTree(vendor, throwOnMissingSubKey: false);
+        }
+        catch { }
+    }
+
     private static void RemoveAutostart()
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(
                 @"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
-            key?.DeleteValue(Program.RunValue, throwOnMissingValue: false);
+            if (key is null) return;
+
+            key.DeleteValue(Program.RunValue, throwOnMissingValue: false);
+            key.DeleteValue(Program.RunValueAgent, throwOnMissingValue: false);
         }
         catch { }
     }
