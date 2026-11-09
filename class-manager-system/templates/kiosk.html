@@ -95,7 +95,6 @@
             <h3 class="kc-sub">远程设置</h3>
             <div class="kc-row">
                 <button type="button" class="btn btn-ghost" id="kIdentify">测试播报</button>
-                <button type="button" class="btn btn-ghost" id="kAutostart">开机自启</button>
                 <button type="button" class="btn btn-ghost" id="kSettings">一体机设置</button>
             </div>
 
@@ -124,6 +123,15 @@
                             <option value="3840x2160">4K（3840×2160）</option>
                         </select>
                     </div>
+                    <label class="switch" style="margin:0 0 16px">
+                        <span class="switch__text">
+                            开机自启
+                            <span class="switch__hint">开机后自动在托盘启动，不弹任何窗口</span>
+                        </span>
+                        <input type="checkbox" id="sAutoStart">
+                        <span class="switch__track"></span>
+                    </label>
+
                     <div class="kc-row" style="margin-bottom:0">
                         <div style="flex:1">
                             <label class="field-label">帧率</label>
@@ -172,7 +180,6 @@
     var sel = document.getElementById('kDevice');
     var out = document.getElementById('kOut');
     var current = null;
-    var autoStartOn = false;
     var lastDetail = null;
 
     if (!devices.length) { emptyEl.hidden = false; return; }
@@ -238,10 +245,6 @@
                     row('远程执行', rem.enabled ? '已授权（本机开启）' : '未授权') +
                     row('UDP 视频', (vid.online ? '接收中' : '无数据') + ' · ' + (vid.fps || 0) + ' fps');
 
-                autoStartOn = !!(ag && ag.autostart);
-                document.getElementById('kAutostart').textContent =
-                    autoStartOn ? '开机自启：已开启' : '开机自启：已关闭';
-
                 if (st.error) out.textContent = st.error;
             })
             .catch(function () { });
@@ -257,25 +260,6 @@
             method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
         }).then(function (r) { return r.json(); });
     }
-
-    document.getElementById('kAutostart').onclick = function () {
-        if (!current) return;
-        var target = !autoStartOn;
-        var body = new URLSearchParams();
-        body.set('action', 'autostart');
-        body.set('csrf_token', csrf);
-        body.set('enabled', target ? '1' : '0');
-        out.textContent = target ? '正在开启开机自启…' : '正在关闭开机自启…';
-
-        fetch('/device/' + current.id + '/action', {
-            method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
-        }).then(function (r) { return r.json(); })
-          .then(function (res) {
-              out.textContent = JSON.stringify(res, null, 2);
-              refresh();
-          })
-          .catch(function (e) { out.textContent = '失败：' + e; });
-    };
 
     document.getElementById('kReboot').onclick = function () {
         if (!current) return;
@@ -347,6 +331,7 @@
 
         document.getElementById('sFps').value = cam.fps || 30;
         document.getElementById('sQuality').value = cam.quality || 70;
+        document.getElementById('sAutoStart').checked = !!ag.autostart;
 
         setDlg.showModal();
     };
@@ -367,13 +352,32 @@
         body.set('fps', document.getElementById('sFps').value || 30);
         body.set('quality', document.getElementById('sQuality').value || 70);
 
+        var wantAutoStart = document.getElementById('sAutoStart').checked;
+        var autoChanged = wantAutoStart !== !!((lastDetail || {}).autostart);
+
         fetch('/device/' + current.id + '/settings', {
             method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
         }).then(function (r) { return r.json(); })
           .then(function (r2) {
-              setDlg.close();
-              out.textContent = JSON.stringify(r2, null, 2);
-              refresh();
+              if (!autoChanged) {
+                  setDlg.close();
+                  out.textContent = JSON.stringify(r2, null, 2);
+                  refresh();
+                  return null;
+              }
+
+              // 开机自启走单独接口，和设置一起提交
+              var ab = new URLSearchParams();
+              ab.set('action', 'autostart');
+              ab.set('csrf_token', csrf);
+              ab.set('enabled', wantAutoStart ? '1' : '0');
+              return fetch('/device/' + current.id + '/action', {
+                  method: 'POST', body: ab, headers: { 'X-Requested-With': 'fetch' }
+              }).then(function (r) { return r.json(); }).then(function (r3) {
+                  setDlg.close();
+                  out.textContent = JSON.stringify({ settings: r2, autostart: r3 }, null, 2);
+                  refresh();
+              });
           })
           .catch(function (err) {
               out.textContent = '保存失败：' + err;
