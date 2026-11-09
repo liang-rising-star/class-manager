@@ -1184,8 +1184,18 @@ public class DesktopBridge
             if (string.IsNullOrEmpty(zipFull) || !File.Exists(zipFull))
                 return "failed: 更新包不存在";
 
-            var updater = Path.Combine(root, "update.exe");
-            if (!File.Exists(updater)) return "failed: 缺少 update.exe";
+            // 更新程序可能在安装根目录，也可能在 class-manager-system\update\ 里
+            var candidates = new[]
+            {
+                Path.Combine(root, "update.exe"),
+                Path.Combine(root, "class-manager-system", "update", "update.exe"),
+                Path.Combine(root, "class-manager-system", "update", "updater.exe"),
+                Path.Combine(root, "updater.exe"),
+            };
+
+            var updater = candidates.FirstOrDefault(File.Exists);
+            if (updater is null)
+                return "failed: 缺少 update.exe（绿色版不支持自动更新，请手动下载完整包覆盖）";
 
             Process.Start(new ProcessStartInfo(updater)
             {

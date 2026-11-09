@@ -23,6 +23,15 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $appName = "class-manager"
+
+# 版本号从 main.py 里读，避免和程序里显示的版本对不上
+$mainPy = Join-Path $root "class-manager-system\main.py"
+$appVersion = "0.0"
+if (Test-Path $mainPy) {
+    $m = Select-String -Path $mainPy -Pattern '^APP_VERSION\s*=\s*"([^"]+)"' | Select-Object -First 1
+    if ($m) { $appVersion = $m.Matches[0].Groups[1].Value }
+}
+Write-Host "   程序版本：v$appVersion" -ForegroundColor Cyan
 $dist = Join-Path $root "dist"
 $target = Join-Path $dist $appName
 $desktopDir = Join-Path $target "desktop"
@@ -104,7 +113,7 @@ Write-Host "== 5/5 收尾 ==" -ForegroundColor Cyan
 Copy-Item (Join-Path $root "logo.ico") (Join-Path $backendDir "logo.ico") -Force -ErrorAction SilentlyContinue
 
 @"
-class-manager  v3.0
+class-manager  v$appVersion
 =================
 
 启动：双击根目录的 class-manager.exe
@@ -121,10 +130,16 @@ class-manager  v3.0
 "@ | Set-Content -Path (Join-Path $target "使用说明.txt") -Encoding UTF8
 
 if (-not $SkipZip) {
-    $zip = Join-Path $dist "$appName-v3.0-$Runtime.zip"
+    # 完整包（绿色版/手动安装）
+    $zip = Join-Path $dist "$appName-v$appVersion-$Runtime.zip"
     Write-Host "   压缩 → $zip" -ForegroundColor Cyan
     Compress-Archive -Path (Join-Path $target "*") -DestinationPath $zip -CompressionLevel Optimal
     Write-Host ("   压缩包：" + [math]::Round((Get-Item $zip).Length / 1MB, 1) + " MB") -ForegroundColor Green
+
+    # 在线更新包：文件名必须带 update 且以 .zip 结尾，程序才会在 Release 资产里认出来
+    $updateZip = Join-Path $dist "$appName-update-v$appVersion-$Runtime.zip"
+    Copy-Item $zip $updateZip -Force
+    Write-Host "   更新包 → $updateZip（发布 Release 时上传这个）" -ForegroundColor Green
 }
 
 # 自检：桌面主程序必须是自包含（带 .NET 运行时），否则装到没装 .NET 的机器上会弹
