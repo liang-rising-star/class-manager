@@ -1,0 +1,247 @@
+{% if history %}
+<section class="card history-card">
+    <div class="card-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7"></path>
+            <path d="M3 3v6h6"></path>
+            <path d="M12 8v4l3 2"></path>
+        </svg>
+        待处理批次
+        <span class="history-count">{{ history|length }}</span>
+    </div>
+    <p class="card-sub">这些还没有打印或保存，关掉窗口也不会丢，可以随时回来处理</p>
+
+    <ul class="history-list">
+        {% for item in history %}
+        <li class="history-row" data-id="{{ item.id }}">
+            <div class="history-main">
+                <div class="history-title">{{ item.class_name }} · {{ item.title }}</div>
+                <div class="history-meta">{{ item.quantity }} 张 · {{ item.amount }} 分 · {{ item.created_at }}</div>
+                <div class="history-file">{{ item.filename }}</div>
+            </div>
+            <div class="history-actions">
+                <button type="button" class="btn btn-sm history-print"
+                        data-batch="{{ item.id }}"
+                        data-printer="{{ printer_value }}">打印</button>
+                <button type="button" class="btn btn-ghost btn-sm history-save"
+                        data-batch="{{ item.id }}"
+                        data-file="{{ item.filename }}">保存</button>
+                <button type="button" class="btn btn-ghost btn-sm history-delete"
+                        data-batch="{{ item.id }}">删除</button>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+    <!-- 删除确认弹窗 -->
+    <dialog id="deleteDialog" class="modal" aria-labelledby="deleteTitle">
+        <div class="modal__body">
+            <div class="modal__icon modal__icon--danger">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"></path>
+                </svg>
+            </div>
+            <h3 class="modal__title" id="deleteTitle">删除这个批次？</h3>
+            <p class="modal__text" id="deleteText">同时会删掉它导出的 Word 文件，删除后不可恢复。</p>
+            <div class="modal__actions">
+                <button type="button" class="btn btn-ghost" id="deleteCancel">取消</button>
+                <button type="button" class="btn btn-danger" id="deleteConfirm">删除</button>
+            </div>
+        </div>
+    </dialog>
+
+<script>
+// Esc / 点遮罩都不关闭弹窗：必须点对应的按钮
+document.addEventListener('cancel', function (e) {
+    if (e.target && e.target.tagName === 'DIALOG') e.preventDefault();
+}, true);
+
+// 待处理批次：只有「真正完成」才从列表移除
+//  - 保存：等桌面端通知下载写完盘（取消保存则保留）
+//  - 打印：等打印任务真正提交成功（失败/取消则保留）
+//  - 删除：即时移除
+(function() {
+    var card = document.querySelector('.history-card');
+    if (!card) return;
+
+    var csrfInput = document.querySelector('input[name="csrf_token"]');
+    var csrf = csrfInput ? csrfInput.value : '';
+    var pendingSave = null;     // { batchId, row, filename }
+    var pendingPrint = null;    // { batchId, row }
+
+    function bridge() {
+        return (window.chrome && window.chrome.webview && window.chrome.webview.hostObjects)
+            ? window.chrome.webview.hostObjects.desktopBridge : null;
+    }
+
+    function post(url) {
+        var body = new URLSearchParams({ csrf_token: csrf });
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        });
+    }
+
+    function dropRow(row) {
+        row.classList.add('is-removing');
+        setTimeout(function() {
+            row.remove();
+            if (!card.querySelector('.history-row')) card.remove();
+        }, 200);
+    }
+
+    function resetPrint(btn) {
+        if (!btn) return;
+        btn.disabled = false;
+        btn.textContent = '打印';
+    }
+
+    function startDownload(filename) {
+        var a = document.createElement('a');
+        a.href = '/download/' + encodeURIComponent(filename);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
+    // 桌面端消息：下载完成/取消
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.addEventListener('message', function(e) {
+            var d = e.data;
+            if (!d) return;
+
+            if (d.type === 'download' && pendingSave) {
+                if (d.state === 'completed' && d.filename === pendingSave.filename) {
+                    var job = pendingSave;
+                    pendingSave = null;
+                    post('/history/' + job.batchId + '/saved').then(function() { dropRow(job.row); });
+                } else if (d.state === 'cancelled') {
+                    var btn = pendingSave.row.querySelector('.history-save');
+                    if (btn) { btn.disabled = false; btn.textContent = '保存'; }
+                    pendingSave = null;
+                }
+                return;
+            }
+
+            if (d.type === 'print-progress' && d.done && pendingPrint && d.token === pendingPrint.batchId) {
+                var job2 = pendingPrint;
+                pendingPrint = null;
+                if (d.error) {
+                    resetPrint(job2.row.querySelector('.history-print'));
+                } else {
+                    post('/history/' + job2.batchId + '/printed').then(function() { dropRow(job2.row); });
+                }
+            }
+        });
+    }
+
+    // 删除前先确认
+    var dlg = document.getElementById('deleteDialog');
+    var dlgText = document.getElementById('deleteText');
+    var dlgConfirm = document.getElementById('deleteConfirm');
+    var pendingDelete = null;
+
+    function askDelete(batchId, row, btn) {
+        if (!dlg) return;
+        var titleEl = row.querySelector('.history-title');
+        var metaEl = row.querySelector('.history-meta');
+        dlgText.textContent = (titleEl ? titleEl.textContent.trim() + '（'
+            + (metaEl ? metaEl.textContent.trim() : '') + '）' : '')
+            + ' 导出的 Word 文件会一起删除，删除后不可恢复。';
+        pendingDelete = { batchId: batchId, row: row, btn: btn };
+        dlg.showModal();
+    }
+
+    function closeDelete() {
+        if (dlg && dlg.open) dlg.close();
+        if (pendingDelete && pendingDelete.btn) pendingDelete.btn.disabled = false;
+        pendingDelete = null;
+    }
+
+    if (dlg) {
+        document.getElementById('deleteCancel').addEventListener('click', closeDelete);
+        dlgConfirm.addEventListener('click', function() {
+            if (!pendingDelete) return;
+            var job = pendingDelete;
+            pendingDelete = null;
+            dlg.close();
+            job.btn.disabled = true;
+            post('/history/' + job.batchId + '/delete')
+                .then(function() { dropRow(job.row); })
+                .catch(function() { job.btn.disabled = false; });
+        });
+    }
+
+    card.addEventListener('click', function(e) {
+        var printBtn = e.target.closest('.history-print');
+        var saveBtn = e.target.closest('.history-save');
+        var delBtn = e.target.closest('.history-delete');
+        var row = e.target.closest('.history-row');
+        if (!row) return;
+
+        if (printBtn) {
+            if (!window.PrintProgress) return;
+
+            window.PrintProgress.ask('打印这批积分卡？',
+                row.querySelector('.history-meta').textContent.trim() + '，点「打印」开始，点「取消」返回。')
+                .then(function(confirmed) {
+                    if (!confirmed) return;
+
+                    printBtn.disabled = true;
+                    printBtn.textContent = '打印中…';
+                    window.PrintProgress.begin('准备打印任务…');
+
+                    var csrfField = document.querySelector('input[name="csrf_token"]');
+                    var body = new URLSearchParams({ csrf_token: csrfField ? csrfField.value : '' });
+                    body.append('batch_id', printBtn.dataset.batch);
+
+                    fetch('/print-now', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: body.toString()
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        if (d && d.ok) {
+                            window.PrintProgress.finish(true, d.message || '已发送到打印机');
+                            dropRow(row);
+                        } else {
+                            resetPrint(printBtn);
+                            window.PrintProgress.finish(false, (d && d.message) || '打印失败');
+                        }
+                    })
+                    .catch(function(err) {
+                        resetPrint(printBtn);
+                        window.PrintProgress.finish(false, '打印失败：' + err);
+                    });
+                });
+            return;
+        }
+
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = '保存中…';
+            pendingSave = { batchId: saveBtn.dataset.batch, row: row, filename: saveBtn.dataset.file };
+            startDownload(saveBtn.dataset.file);
+
+            // 网页版没有桌面端回执，无法判断是否取消，按发起即完成处理
+            if (!(window.chrome && window.chrome.webview)) {
+                var job = pendingSave;
+                pendingSave = null;
+                post('/history/' + job.batchId + '/saved').then(function() { dropRow(job.row); });
+            }
+            return;
+        }
+
+        if (delBtn) {
+            askDelete(delBtn.dataset.batch, row, delBtn);
+        }
+    });
+})();
+</script>

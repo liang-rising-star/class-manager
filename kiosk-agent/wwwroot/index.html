@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>一体机端 · 班级管理系统</title>
+    <link rel="stylesheet" href="/style.css?v=__ASSET_V__">
+</head>
+<body>
+
+<header class="topbar">
+    <img src="/logo.ico" alt="">
+    <div>
+        <h1>一体机端</h1>
+        <div class="sub">CLASS MANAGER · KIOSK AGENT</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill" id="devicePill"><span class="dot"></span><span id="deviceName">连接中…</span></span>
+    <button class="ghost small" id="logoutBtn" hidden>退出登录</button>
+</header>
+
+<div class="wrap">
+
+    <!-- 首次设置密码 -->
+    <section class="card center-card" id="setupView" hidden>
+        <img class="brand-mark" src="/logo.ico" alt="">
+        <h2>初始化访问密码</h2>
+        <p class="desc">首次使用，请为本机设置一个访问密码。<br>之后打开主界面需要输入该密码。</p>
+        <div class="field">
+            <label>设置密码（至少 4 位）</label>
+            <input type="password" id="setupPwd" autocomplete="new-password" placeholder="请输入密码">
+        </div>
+        <div class="field">
+            <label>确认密码</label>
+            <input type="password" id="setupPwd2" autocomplete="new-password" placeholder="再次输入">
+        </div>
+        <p class="error-text" id="setupError"></p>
+        <button id="setupBtn" style="width:100%">保存并进入</button>
+    </section>
+
+    <!-- 登录 -->
+    <section class="card center-card" id="loginView" hidden>
+        <img class="brand-mark" src="/logo.ico" alt="">
+        <h2>登录一体机端</h2>
+        <p class="desc">请输入访问密码</p>
+        <div class="field">
+            <label>访问密码</label>
+            <input type="password" id="loginPwd" autocomplete="current-password" placeholder="请输入密码">
+        </div>
+        <p class="error-text" id="loginError"></p>
+        <button id="loginBtn" style="width:100%">登录</button>
+    </section>
+
+    <!-- 设置主体 -->
+    <main id="settingsView" hidden>
+        <div class="grid">
+
+            <section class="card card--wide">
+                <h2>设备信息 <span class="tag">教师端对接</span></h2>
+                <p class="desc">教师端通过下面的局域网地址与访问密钥接入本机。</p>
+                <dl class="kv">
+                    <dt>教室 / 班级</dt><dd id="infoRoom">—</dd>
+                    <dt>设备名称</dt><dd id="infoDevice">—</dd>
+                    <dt>局域网地址</dt><dd id="infoLan">—</dd>
+                    <dt>本机地址</dt><dd id="infoLocal">—</dd>
+                    <dt>访问密钥</dt><dd><span class="keybox" id="infoKey">—</span></dd>
+                </dl>
+                <div class="row" style="margin-top:14px">
+                    <button class="ghost small" id="copyInfoBtn">复制对接信息</button>
+                    <button class="ghost small" id="rotateKeyBtn">重置访问密钥</button>
+                </div>
+                <div class="hint">
+                    接口示例：<code>GET /api/camera/stream</code>、<code>GET /api/mic/stream</code>，
+                    请求头加 <code>X-Access-Key: 你的密钥</code>。
+                    设备发现：<code>GET /api/info</code>（无需鉴权）。
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>开机自启</h2>
+                <p class="desc">开机后自动在托盘启动，不弹任何窗口。</p>
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="autostart">
+                        <span class="track"></span>
+                        <span>开机自动启动</span>
+                    </label>
+                </div>
+                <p class="hint">开启后写入当前用户启动项；关掉即取消。</p>
+            </section>
+
+            <section class="card">
+                <h2>一键配置码 <span class="tag">教师端</span></h2>
+                <p class="desc">生成后复制，粘贴到管理端「设置 → 班级设备 → 添加设备」里，自动填好 IP、端口和密钥。</p>
+                <div class="field">
+                    <label>配置码</label>
+                    <textarea id="cfgCode" readonly rows="3" placeholder="点下面的按钮生成"
+                              style="width:100%;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px;
+                                     line-height:1.5;padding:10px 12px;border:1px dashed #cfd8e6;border-radius:10px;
+                                     background:#f6f8fc;color:var(--text);outline:none"></textarea>
+                </div>
+                <div class="row">
+                    <button id="genCodeBtn">生成配置码</button>
+                    <button class="ghost" id="copyCodeBtn">复制</button>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>基础设置</h2>
+                <p class="desc">教室名称用于教师端识别这台一体机。</p>
+                <div class="field">
+                    <label>教室 / 班级名称</label>
+                    <input type="text" id="roomName" placeholder="例如：三年级二班">
+                </div>
+                <div class="field">
+                    <label>设备名称</label>
+                    <input type="text" id="deviceNameInput" placeholder="例如：3-2 一体机">
+                </div>
+                <button id="saveBaseBtn">保存</button>
+            </section>
+
+            <section class="card">
+                <h2>摄像头</h2>
+                <p class="desc">选择教师端要拉取的监控画面来源。</p>
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="cameraEnabled">
+                        <span class="track"></span>
+                        <span>允许教师端拉取画面</span>
+                    </label>
+                </div>
+                <div class="field">
+                    <label>摄像头设备</label>
+                    <select id="cameraSelect"></select>
+                </div>
+                <div class="field">
+                    <label>分辨率</label>
+                    <select id="cameraResolution">
+                        <option value="640x360">360P（640×360）</option>
+                        <option value="1280x720" selected>720P（1280×720）</option>
+                        <option value="1920x1080">1080P（1920×1080）</option>
+                        <option value="2560x1440">2K（2560×1440）</option>
+                        <option value="3840x2160">4K（3840×2160）</option>
+                    </select>
+                </div>
+                <div class="row" style="margin-bottom:14px">
+                    <div class="grow">
+                        <label>帧率</label>
+                        <input type="number" id="cameraFps" min="1" max="30" value="30">
+                    </div>
+                    <div class="grow">
+                        <label>画质</label>
+                        <input type="number" id="cameraQuality" min="30" max="95" value="70">
+                    </div>
+                </div>
+                <div class="row">
+                    <button id="saveCameraBtn">应用</button>
+                    <button class="ghost" id="stopCameraBtn">停止预览</button>
+                </div>
+            </section>
+
+            <section class="card card--wide">
+                <h2>画面预览 <span class="tag" id="cameraState">未启动</span></h2>
+                <p class="desc">下面是教师端看到的实时画面（MJPEG）。</p>
+                <div class="preview" id="previewBox"><span id="previewHint">摄像头未启动</span></div>
+            </section>
+
+            <section class="card">
+                <h2>麦克风</h2>
+                <p class="desc">开关与选择要采集的麦克风设备。</p>
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="micEnabled">
+                        <span class="track"></span>
+                        <span>允许教师端收听</span>
+                    </label>
+                </div>
+                <div class="field">
+                    <label>麦克风设备</label>
+                    <select id="micSelect"></select>
+                </div>
+                <div class="field">
+                    <label>音量增益 <span id="gainValue">1.0</span></label>
+                    <input type="range" id="micGain" min="0.1" max="3" step="0.1" value="1" style="width:100%">
+                </div>
+                <div class="field">
+                    <label>当前电平</label>
+                    <div class="meter"><i id="micMeter"></i></div>
+                </div>
+                <button id="saveMicBtn">保存</button>
+            </section>
+
+            <section class="card">
+                <h2>远程执行指令</h2>
+                <p class="desc">授权后，教师端可携带密钥在本机执行命令。</p>
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="remoteEnabled">
+                        <span class="track"></span>
+                        <span>授权远程执行</span>
+                    </label>
+                </div>
+                <div class="field">
+                    <label>单条指令超时（秒）</label>
+                    <input type="number" id="remoteTimeout" min="1" max="120" value="15">
+                </div>
+                <div class="field">
+                    <label>允许的命令前缀（每行一个，留空表示不限制）</label>
+                    <textarea id="remoteAllowed" rows="4"
+                              style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfcfe;font-family:inherit;font-size:13px"
+                              placeholder="shutdown&#10;taskkill&#10;ipconfig"></textarea>
+                </div>
+                <button id="saveRemoteBtn">保存</button>
+            </section>
+
+            <section class="card">
+                <h2>访问密码</h2>
+                <p class="desc">修改后所有已登录的浏览器会话会失效。</p>
+                <div class="field">
+                    <label>当前密码</label>
+                    <input type="password" id="oldPwd" autocomplete="current-password">
+                </div>
+                <div class="field">
+                    <label>新密码</label>
+                    <input type="password" id="newPwd" autocomplete="new-password">
+                </div>
+                <button id="savePwdBtn">修改密码</button>
+            </section>
+
+        </div>
+    </main>
+
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/slider.js?v=__ASSET_V__"></script>
+<script src="/app.js?v=__ASSET_V__"></script>
+</body>
+</html>

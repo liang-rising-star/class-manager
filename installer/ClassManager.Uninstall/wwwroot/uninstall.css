@@ -1,0 +1,169 @@
+/* 卸载向导：复用 app.css 的变量与按钮，只补这一页的布局 */
+.un-body {
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    background: radial-gradient(120% 90% at 50% 0%, #e8f1ff 0%, #f6f9ff 45%, #ffffff 100%);
+    font-family: "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+    color: #0f172a;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.un-wrap { position: relative; height: 100vh; }
+
+.un-step {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: 30px 44px 26px;
+    overflow-y: auto;
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.un-step.is-active { display: flex; animation: unIn .3s cubic-bezier(.22,.8,.3,1) forwards; }
+@keyframes unIn { to { opacity: 1; transform: none; } }
+
+.un-head { text-align: center; margin-bottom: 22px; }
+
+.un-logo {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    margin-bottom: 14px;
+    animation: unPop .6s cubic-bezier(.2,.9,.25,1.15) both;
+}
+
+@keyframes unPop { 0% { transform: scale(.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+.un-head h1 { margin: 0; font-size: 22px; font-weight: 700; }
+
+.un-sub { margin: 8px 0 0; font-size: 13px; color: #64748b; line-height: 1.6; }
+
+.un-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 6px 18px;
+}
+
+.un-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 11px 0;
+    font-size: 13px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.un-row:last-child { border-bottom: 0; }
+
+.un-label { color: #94a3b8; }
+.un-value { color: #0f172a; font-weight: 600; word-break: break-all; text-align: right; }
+
+.un-warn {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 13px 15px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 12px;
+    color: #b45309;
+}
+
+.un-warn b { display: block; font-size: 13px; margin-bottom: 3px; }
+.un-warn span { font-size: 12.5px; line-height: 1.6; color: #92400e; }
+
+.un-foot {
+    margin-top: auto;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 20px;
+}
+
+.un-progress { margin-top: 26px; }
+
+.un-progress__bar {
+    height: 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.un-progress__bar span {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2563eb, #6366f1, #06b6d4);
+    transition: width .25s ease;
+}
+
+.un-progress__meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: #64748b;
+}
+
+.un-done { margin: auto; text-align: center; }
+
+.un-done__icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    display: grid;
+    place-items: center;
+    color: #16a34a;
+    background: #dcfce7;
+    border-radius: 50%;
+    animation: unPop .5s cubic-bezier(.2,.9,.25,1.15) both;
+}
+
+.un-done__icon--error { color: #dc2626; background: #fee2e2; }
+
+.un-done h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.un-done .un-sub { margin-bottom: 22px; }
+
+.btn-lg { height: 44px; padding: 0 24px; font-size: 14.5px; }
+
+/* 保留数据复选框 */
+.un-keep {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 16px;
+    padding: 13px 15px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: border-color .16s, background .16s;
+}
+
+.un-keep:hover { border-color: #cbd5e1; background: #f1f5f9; }
+
+.un-keep input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+
+.un-keep__body { display: flex; flex-direction: column; gap: 2px; }
+.un-keep__body b { font-size: 13px; color: #0f172a; }
+.un-keep__body span { font-size: 12px; color: #64748b; line-height: 1.55; }
+
+.un-keepnote {
+    margin-top: 6px;
+    font-size: 12.5px;
+    color: #16a34a;
+    word-break: break-all;
+}

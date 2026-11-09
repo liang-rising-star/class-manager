@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# 运行时数据：数据库、导出文件、含管理员口令的配置，禁止入库
+class-manager-system/data/
+class-manager-system/update/
+class-manager-system/db/
+class-manager-system/output/
+
+# 内嵌 CPython 运行时（约 430MB / 1.3 万个文件），不入库。
+# 需要时从 python.org 下载 Windows embeddable 包解压到该目录，
+# 或用 `git log --all -- class-manager-system/python` 找回历史版本；
+# 临时重新纳入版本管理请用 `git add -f class-manager-system/python`。
+class-manager-system/python/
+
+# 打包/构建产物（build/ 里是脚本，保留入库；只忽略产物目录）
+dist/
+installer/*/bin/
+installer/*/obj/
+installer/ClassManager.Setup/payload.zip
+*.spec
+desktop/bin/
+desktop/obj/
+launcher/bin/
+launcher/obj/
+kiosk-agent/bin/
+kiosk-agent/obj/
+
+# 运行时/安装包用的 CPython 分发包（体积大，用时现下）
+python.zip
+python-*-embed-amd64.zip
+class-manager-system/python-*-embed-amd64.zip
+
+# 编辑器与系统文件
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 旧版安装包产物（打包生成，不入库）
+class-score-setup.exe
+*-setup.exe

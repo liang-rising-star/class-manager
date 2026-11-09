@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>一体机控制 · {{ system_name }}</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+    <style>
+        .kc-bar {
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .kc-bar select {
+            width: auto; flex: 0 1 380px; max-width: 420px;
+            padding: 9px 12px; border: 1px solid var(--border);
+            border-radius: 10px; background: #fbfcfe; font: inherit; font-size: 13.5px;
+            color: var(--text); outline: none;
+        }
+        .kc-bar select:focus { border-color: var(--primary); background: #fff; }
+        .kc-bar .spacer { flex: 1; }
+
+        .kc-info {
+            display: grid; grid-template-columns: 96px 1fr; gap: 8px 14px;
+            font-size: 13px; margin: 0 0 22px;
+        }
+        .kc-info dt { color: var(--text-muted); }
+        .kc-info dd { margin: 0; }
+
+        .kc-sep { height: 1px; background: var(--border); margin: 0 0 20px; }
+
+        .kc-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+        .kc-row input[type="text"] {
+            flex: 1; min-width: 240px; padding: 9px 12px; border: 1px solid var(--border);
+            border-radius: 10px; background: #fbfcfe; font: inherit; font-size: 13.5px; outline: none;
+        }
+        .kc-row input[type="text"]:focus { border-color: var(--primary); background: #fff; }
+
+        .kc-out {
+            background: #0f172a; color: #cbd5e1; border-radius: 10px; padding: 14px;
+            font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+            white-space: pre-wrap; max-height: 280px; overflow: auto; min-height: 96px;
+        }
+        .kc-empty { text-align: center; padding: 50px 20px; color: var(--text-muted); }
+
+        .kc-screen {
+            background: #0f172a; border-radius: 12px; aspect-ratio: 16 / 10;
+            display: flex; align-items: center; justify-content: center;
+            color: #93a4bd; font-size: 13px; overflow: hidden;
+        }
+        .kc-screen img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .kc-hint { font-size: 12.5px; color: var(--text-muted); margin: 0 0 16px; }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        {% set active_page = 'kiosk' %}
+        {% include "_sidebar.html" %}
+
+    <main class="page">
+        <div class="page-head">
+            <h1 class="page-title">一体机控制</h1>
+            <p class="page-desc">选择教室后查看运行状态、测试播报，或向该一体机下发指令</p>
+        </div>
+
+        <div id="kEmpty" class="card kc-empty" hidden>
+            还没有添加班级设备。<br><br>
+            <a href="/setting#devices">前往「设置 → 班级设备」添加一体机的 IP 和访问密钥 →</a>
+        </div>
+
+        <section class="card" id="kPanel" hidden>
+            <div class="kc-bar">
+                <select id="kDevice"></select>
+                <span class="status-pill" id="kPill">—</span>
+                <span class="spacer"></span>
+                <button type="button" class="btn btn-ghost btn-sm" id="kRefresh">刷新状态</button>
+            </div>
+
+            <dl class="kc-info" id="kInfo"></dl>
+
+            <div class="kc-sep"></div>
+
+            <p class="kc-hint">
+                摄像头、麦克风、远程执行授权等设置只能在一体机本机操作，这里不提供远程修改。
+            </p>
+
+            <div class="kc-row">
+                <button type="button" class="btn btn-ghost" id="kIdentify">测试播报</button>
+            </div>
+
+            <h3 style="font-size:14px;margin:0 0 12px;color:var(--text-strong)">屏幕直播</h3>
+            <div class="kc-screen" id="kScreenBox">
+                <span>正在获取画面…</span>
+            </div>
+
+            <div class="kc-sep" style="margin:22px 0 18px"></div>
+
+            <h3 style="font-size:14px;margin:0 0 12px;color:var(--text-strong)">远程指令</h3>
+            <div class="kc-row">
+                <input type="text" id="kCmd" placeholder="指令内容，例如：ipconfig /all">
+                <button type="button" class="btn" id="kExec">执行</button>
+            </div>
+
+            <div class="kc-out" id="kOut">等待操作…</div>
+        </section>
+    </main>
+
+    </div>
+
+<script>
+(function () {
+    var devices = {{ devices|tojson }};
+    var csrf = {{ csrf_token|tojson }};
+    var emptyEl = document.getElementById('kEmpty');
+    var panelEl = document.getElementById('kPanel');
+    var sel = document.getElementById('kDevice');
+    var out = document.getElementById('kOut');
+    var current = null;
+
+    if (!devices.length) { emptyEl.hidden = false; return; }
+    panelEl.hidden = false;
+
+    devices.forEach(function (d) {
+        var o = document.createElement('option');
+        o.value = d.id;
+        o.textContent = (d.name || d.host) + (d.room ? '（' + d.room + '）' : '');
+        sel.appendChild(o);
+    });
+
+    sel.addEventListener('change', function () {
+        current = devices.filter(function (d) { return d.id === sel.value; })[0] || null;
+        out.textContent = '等待操作…';
+        refresh();
+        attachScreen();
+    });
+
+    function row(k, v) { return '<dt>' + k + '</dt><dd>' + esc(v) + '</dd>'; }
+
+    function attachScreen() {
+        if (!current) return;
+        var box = document.getElementById('kScreenBox');
+        box.innerHTML = '<span>正在获取画面…</span>';
+
+        var img = document.createElement('img');
+        img.alt = '屏幕直播';
+        img.src = '/device/' + current.id + '/screen?t=' + Date.now();
+        img.onerror = function () {
+            box.innerHTML = '<span>屏幕画面获取失败，5 秒后重试…</span>';
+            setTimeout(function () { if (current) attachScreen(); }, 5000);
+        };
+        img.onload = function () { box.innerHTML = ''; box.appendChild(img); };
+        box.appendChild(img);
+    }
+
+    function refresh() {
+        if (!current) return;
+        fetch('/device/' + current.id + '/status')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (st) {
+                if (!st) return;
+
+                var pill = document.getElementById('kPill');
+                var online = st.reachable || (st.video && st.video.online);
+                pill.className = 'status-pill ' + (online ? 'status-pill--ok' : 'status-pill--bad');
+                pill.textContent = online ? '在线' : (st.error ? '连接失败' : '离线');
+
+                var ag = st.detail || {};
+                var cam = ag.camera || {};
+                var mic = ag.mic || {};
+                var rem = ag.remote || {};
+                var vid = st.video || {};
+
+                document.getElementById('kInfo').innerHTML =
+                    row('设备名', (st.agent && st.agent.device) || '—') +
+                    row('教室', st.room || '未设置') +
+                    row('地址', st.host + ':' + st.port) +
+                    row('摄像头', cam.enabled ? ('开 · ' + (cam.current || '') + ' · ' + (cam.actualFps || 0) + ' fps') : '关') +
+                    row('麦克风', mic.enabled ? ('开 · ' + (mic.current || '')) : '关') +
+                    row('远程执行', rem.enabled ? '已授权（本机开启）' : '未授权') +
+                    row('UDP 视频', (vid.online ? '接收中' : '无数据') + ' · ' + (vid.fps || 0) + ' fps');
+
+                if (st.error) out.textContent = st.error;
+            })
+            .catch(function () { });
+    }
+
+    function postAction(action, payload) {
+        var body = new URLSearchParams();
+        body.set('action', action);
+        body.set('csrf_token', csrf);
+        body.set('text', (payload && payload.text) || '');
+        body.set('command', (payload && payload.command) || '');
+        return fetch('/device/' + current.id + '/action', {
+            method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (r) { return r.json(); });
+    }
+
+    document.getElementById('kIdentify').onclick = function () {
+        if (!current) return;
+        out.textContent = '正在发送测试播报…';
+        postAction('identify').then(function (res) {
+            out.textContent = JSON.stringify(res, null, 2);
+        }).catch(function (e) { out.textContent = '失败：' + e; });
+    };
+
+    document.getElementById('kExec').onclick = function () {
+        if (!current) return;
+        var cmd = (document.getElementById('kCmd').value || '').trim();
+        if (!cmd) { document.getElementById('kCmd').focus(); return; }
+
+        out.textContent = '执行中…';
+        this.disabled = true;
+        var btn = this;
+        postAction('exec', { command: cmd }).then(function (res) {
+            btn.disabled = false;
+            out.textContent = JSON.stringify(res, null, 2);
+        }).catch(function (e) {
+            btn.disabled = false;
+            out.textContent = '失败：' + e;
+        });
+    };
+
+    document.getElementById('kRefresh').onclick = refresh;
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    current = devices[0];
+    sel.value = current.id;
+    refresh();
+    attachScreen();
+    setInterval(refresh, 4000);
+})();
+</script>
+</body>
+</html>

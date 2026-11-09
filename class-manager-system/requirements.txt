@@ -1,0 +1,8 @@
+fastapi
+uvicorn[jinja2]
+jinja2
+python-docx
+python-barcode
+pillow
+python-multipart
+pypdfium2          # 打印时把 PDF 渲染成位图（/print-now 用）

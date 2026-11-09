@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>班级监控 · {{ system_name }}</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+    <style>
+        .mon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 18px; }
+        .mon-card { padding: 0; overflow: hidden; }
+        .mon-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px 12px 18px; }
+        .mon-name { font-weight: 700; font-size: 15px; }
+        .mon-room { color: var(--text-muted); font-size: 12.5px; }
+        .mon-head .spacer { flex: 1; }
+        .mon-tools { display: flex; gap: 6px; }
+        .mon-tools .btn { padding: 6px 10px; font-size: 12.5px; }
+
+        .icon-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 6px 8px; line-height: 0;
+        }
+        .icon-btn svg { display: block; }
+        .icon-btn.is-on { background: var(--primary); color: #fff; }
+        .icon-btn.is-live { background: #dc2626; color: #fff; animation: micPulse 1.4s ease-in-out infinite; }
+        @keyframes micPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.45); } 50% { box-shadow: 0 0 0 6px rgba(220,38,38,0); } }
+
+        .mon-frame { background: #0f172a; aspect-ratio: 16 / 9; display: flex; align-items: center;
+                     justify-content: center; color: #93a4bd; font-size: 13px; position: relative; }
+        .mon-frame img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .mon-frame:fullscreen { aspect-ratio: auto; width: 100vw; height: 100vh; background: #000; }
+        .mon-frame:fullscreen img { width: 100%; height: 100%; object-fit: contain; }
+
+        .mon-overlay { position: absolute; left: 0; right: 0; bottom: 0; display: none;
+                       align-items: center; gap: 10px; padding: 14px 18px;
+                       background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0));
+                       color: #fff; font-size: 15px; }
+        .mon-frame:fullscreen .mon-overlay { display: flex; }
+        .mon-overlay .spacer { flex: 1; }
+        .mon-overlay .name { font-weight: 650; }
+        .mon-overlay .sub { font-size: 12.5px; color: #c3cddd; }
+
+        .mon-foot { display: flex; gap: 14px; padding: 10px 18px 14px; font-size: 12.5px; color: var(--text-muted); }
+        .mon-foot b { color: var(--text-strong); font-variant-numeric: tabular-nums; }
+        .mon-empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+        .mon-empty a { font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        {% set active_page = 'monitor' %}
+        {% include "_sidebar.html" %}
+
+    <main class="page">
+        <div class="page-head">
+            <h1 class="page-title">班级监控</h1>
+            <p class="page-desc">实时画面 + 双向对讲：麦克风图标开始对讲，喇叭图标收听教室声音</p>
+        </div>
+
+        <div id="monEmpty" class="card mon-empty" hidden>
+            还没有添加班级设备。<br><br>
+            <a href="/setting#devices">前往「设置 → 班级设备」添加一体机的 IP 和访问密钥 →</a>
+        </div>
+
+        <div class="mon-grid" id="monGrid"></div>
+    </main>
+
+    </div>
+
+<script>
+(function () {
+    var devices = {{ devices|tojson }};
+    var csrf = {{ csrf_token|tojson }};
+    var grid = document.getElementById('monGrid');
+    var empty = document.getElementById('monEmpty');
+
+    if (!devices.length) { empty.hidden = false; return; }
+
+    var ICON_MIC = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="9" y="2.5" width="6" height="11" rx="3"></rect>' +
+        '<path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"></path></svg>';
+
+    var ICON_SPEAKER = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M4 9.5v5a1 1 0 0 0 1 1h3l5 4v-15l-5 4H5a1 1 0 0 0-1 1z"></path>' +
+        '<path d="M17 8.5a5 5 0 0 1 0 7M19.5 6a8.5 8.5 0 0 1 0 12"></path></svg>';
+
+    var ICON_FULL = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>';
+
+    var ICON_EXIT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path></svg>';
+
+    // ---------------- 音频工具 ----------------
+
+    function downsample(input, inRate, outRate) {
+        if (outRate >= inRate) return input;
+        var ratio = inRate / outRate;
+        var length = Math.floor(input.length / ratio);
+        var out = new Float32Array(length);
+        for (var i = 0; i < length; i++) {
+            var start = Math.floor(i * ratio);
+            var end = Math.min(input.length, Math.floor((i + 1) * ratio));
+            var sum = 0, n = 0;
+            for (var j = start; j < end; j++) { sum += input[j]; n++; }
+            out[i] = n ? sum / n : 0;
+        }
+        return out;
+    }
+
+    function floatTo16(samples) {
+        var buf = new ArrayBuffer(samples.length * 2);
+        var view = new DataView(buf);
+        for (var i = 0; i < samples.length; i++) {
+            var s = Math.max(-1, Math.min(1, samples[i]));
+            view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+        }
+        return buf;
+    }
+
+    // ---------------- 每台设备 ----------------
+
+    devices.forEach(function (d) {
+        var card = document.createElement('div');
+        card.className = 'card mon-card';
+        card.innerHTML =
+            '<div class="mon-head">' +
+                '<div>' +
+                    '<div class="mon-name">' + esc(d.name || d.host) + '</div>' +
+                    '<div class="mon-room">' + esc(d.room || '未设置教室') + ' · ' + esc(d.host) + '</div>' +
+                '</div>' +
+                '<div class="spacer"></div>' +
+                '<span class="status-pill" data-role="pill">连接中…</span>' +
+                '<div class="mon-tools">' +
+                    '<button type="button" class="btn btn-ghost icon-btn" data-role="mic" ' +
+                        'title="按住对讲（开始后双向语音）" aria-label="对讲">' + ICON_MIC + '</button>' +
+                    '<button type="button" class="btn btn-ghost icon-btn" data-role="listen" ' +
+                        'title="收听教室声音" aria-label="收听">' + ICON_SPEAKER + '</button>' +
+                    '<button type="button" class="btn btn-ghost icon-btn" data-role="full" ' +
+                        'title="全屏" aria-label="全屏">' + ICON_FULL + '</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="mon-frame" data-role="frame">等待视频…' +
+                '<div class="mon-overlay">' +
+                    '<div><div class="name">' + esc(d.name || d.host) + '</div>' +
+                    '<div class="sub">' + esc(d.room || '未设置教室') + ' · ' + esc(d.host) + '</div></div>' +
+                    '<div class="spacer"></div>' +
+                    '<button type="button" class="btn btn-ghost btn-sm icon-btn" data-role="mic-fs" ' +
+                        'title="对讲" aria-label="对讲">' + ICON_MIC + '</button>' +
+                    '<button type="button" class="btn btn-ghost btn-sm icon-btn" data-role="listen-fs" ' +
+                        'title="收听" aria-label="收听">' + ICON_SPEAKER + '</button>' +
+                    '<button type="button" class="btn btn-ghost btn-sm icon-btn" data-role="exit-fs" ' +
+                        'title="退出全屏" aria-label="退出全屏">' + ICON_EXIT + '</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="mon-foot">' +
+                '<span>帧率 <b data-role="fps">–</b> fps</span>' +
+                '<span>已收 <b data-role="frames">0</b> 帧</span>' +
+                '<span>端口 <b>' + d.port + '</b></span>' +
+            '</div>';
+        grid.appendChild(card);
+
+        var frameBox = card.querySelector('[data-role=frame]');
+        var pill = card.querySelector('[data-role=pill]');
+        var hint = frameBox.firstChild;
+
+        // ---- 视频 ----
+        function attach() {
+            var img = document.createElement('img');
+            img.alt = d.name;
+            img.src = '/device/' + d.id + '/stream?t=' + Date.now();
+            img.onerror = function () {
+                if (hint) hint.textContent = '画面获取失败，3 秒后重试…';
+                pill.className = 'status-pill status-pill--bad';
+                pill.textContent = '离线';
+                img.remove();
+                setTimeout(attach, 3000);
+            };
+            img.onload = function () { if (hint) hint.textContent = ''; };
+            frameBox.insertBefore(img, frameBox.firstChild);
+        }
+        attach();
+
+        // ---- 收听（教室麦克风 → 本机扬声器）----
+        var audio = null;
+        var listening = false;
+
+        function setListening(on) {
+            listening = on;
+            if (on) {
+                if (!audio) {
+                    audio = new Audio('/device/' + d.id + '/mic?t=' + Date.now());
+                    audio.preload = 'none';
+                }
+                audio.play().catch(function () { /* 自动播放被拦，等用户再点 */ });
+            } else if (audio) {
+                audio.pause();
+                audio.src = '';
+                audio = null;
+            }
+            updateButtons();
+        }
+
+        // ---- 对讲（本机麦克风 → 教室音箱）----
+        var talkStream = null, talkCtx = null, talkNode = null, talkGain = null;
+        var talking = false, pending = false, leftover = [];
+
+        async function startTalk() {
+            // 浏览器规定：非 https、且不是本机地址的页面，禁止采集麦克风
+            var localHost = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('当前浏览器不支持麦克风采集，请用「班级管理系统桌面版」打开。');
+                return;
+            }
+            if (!window.isSecureContext && !localHost) {
+                alert('浏览器禁止在非加密页面使用麦克风。\n\n当前地址：' + location.host + '\n' + '解决办法二选一：\n' + '1）在这台电脑上用「班级管理系统桌面版」打开（页面走 127.0.0.1，不受限制）\n' + '2）给管理端配置 https 证书后通过 https 访问');
+                return;
+            }
+
+            try {
+                talkStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                });
+
+                var Ctx = window.AudioContext || window.webkitAudioContext;
+                talkCtx = new Ctx();
+                var src = talkCtx.createMediaStreamSource(talkStream);
+                talkNode = talkCtx.createScriptProcessor(4096, 1, 1);
+                talkGain = talkCtx.createGain();
+                talkGain.gain.value = 0;                 // 本地静音，避免自激
+
+                talkNode.onaudioprocess = function (e) {
+                    if (!talking) return;
+                    var pcm16 = downsample(e.inputBuffer.getChannelData(0), talkCtx.sampleRate, 16000);
+                    for (var i = 0; i < pcm16.length; i++) leftover.push(pcm16[i]);
+                    if (leftover.length >= 3200) {          // 200ms
+                        var chunk = leftover.splice(0, 3200);
+                        sendChunk(floatTo16(chunk));
+                    }
+                };
+
+                src.connect(talkNode);
+                talkNode.connect(talkGain);
+                talkGain.connect(talkCtx.destination);
+
+                talking = true;
+                setListening(true);                         // 对讲默认双向
+                updateButtons();
+            } catch (err) {
+                var name = err && err.name ? err.name : '';
+                var msg = err && err.message ? err.message : String(err);
+                if (name === 'NotAllowedError') msg = '麦克风权限被拒绝，请在浏览器/系统设置里允许后重试';
+                else if (name === 'NotFoundError') msg = '这台电脑上没找到麦克风设备';
+                else if (name === 'NotReadableError') msg = '麦克风被其他程序占用，请关闭后重试';
+                alert('无法打开麦克风：' + msg);
+            }
+        }
+
+        function sendChunk(arrayBuffer) {
+            if (pending) return;                            // 上一个还没发完就丢帧，保持实时
+            pending = true;
+            fetch('/device/' + d.id + '/audio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/octet-stream', 'X-CSRF-Token': csrf },
+                body: arrayBuffer
+            }).catch(function () { }).then(function () { pending = false; });
+        }
+
+        async function stopTalk() {
+            talking = false;
+            leftover = [];
+            try {
+                if (talkNode) { talkNode.onaudioprocess = null; talkNode.disconnect(); }
+                if (talkGain) talkGain.disconnect();
+                if (talkCtx) await talkCtx.close();
+                if (talkStream) talkStream.getTracks().forEach(function (t) { t.stop(); });
+            } catch (e) { }
+            talkNode = talkCtx = talkGain = talkStream = null;
+
+            fetch('/device/' + d.id + '/audio-stop', {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrf }
+            }).catch(function () { });
+
+            updateButtons();
+        }
+
+        function toggleTalk() {
+            if (talking) stopTalk(); else startTalk();
+        }
+
+        function updateButtons() {
+            [card.querySelector('[data-role=mic]'), card.querySelector('[data-role=mic-fs]')].forEach(function (b) {
+                if (!b) return;
+                b.classList.toggle('is-live', talking);
+                b.title = talking ? '结束对讲' : '开始对讲';
+            });
+            [card.querySelector('[data-role=listen]'), card.querySelector('[data-role=listen-fs]')].forEach(function (b) {
+                if (!b) return;
+                b.classList.toggle('is-on', listening);
+                b.title = listening ? '停止收听' : '收听教室声音';
+            });
+        }
+
+        // ---- 绑定 ----
+        card.querySelector('[data-role=mic]').onclick = toggleTalk;
+        card.querySelector('[data-role=mic-fs]').onclick = toggleTalk;
+        card.querySelector('[data-role=listen]').onclick = function () { setListening(!listening); };
+        card.querySelector('[data-role=listen-fs]').onclick = function () { setListening(!listening); };
+
+        card.querySelector('[data-role=full]').onclick = function () {
+            if (frameBox.requestFullscreen) frameBox.requestFullscreen();
+            else if (frameBox.webkitRequestFullscreen) frameBox.webkitRequestFullscreen();
+        };
+        card.querySelector('[data-role=exit-fs]').onclick = function () {
+            if (document.exitFullscreen) document.exitFullscreen();
+        };
+
+        updateButtons();
+
+        if (!window.isSecureContext && location.hostname !== '127.0.0.1' && location.hostname !== 'localhost') {
+            var micBtn = card.querySelector('[data-role=mic]');
+            if (micBtn) {
+                micBtn.title = '当前页面地址不允许使用麦克风，请用桌面版（127.0.0.1）打开';
+                micBtn.style.opacity = '.55';
+            }
+        }
+
+        // ---- 状态轮询 ----
+        function refresh() {
+            fetch('/device/' + d.id + '/status', { headers: { 'X-Requested-With': 'fetch' } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (st) {
+                    if (!st) return;
+                    var v = st.video || {};
+                    var online = st.reachable || v.online;
+                    pill.className = 'status-pill ' + (online ? 'status-pill--ok' : 'status-pill--bad');
+                    pill.textContent = online ? '在线' : (st.error ? '连接失败' : '离线');
+                    card.querySelector('[data-role=fps]').textContent = v.fps != null ? v.fps : '–';
+                    card.querySelector('[data-role=frames]').textContent = v.frames != null ? v.frames : '0';
+                })
+                .catch(function () { });
+        }
+        refresh();
+        setInterval(refresh, 3000);
+    });
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+})();
+</script>
+</body>
+</html>

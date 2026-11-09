@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>初始化 · 设置管理密码</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+</head>
+<body>
+    <div class="auth-page">
+        <div class="auth-card">
+            <div class="auth-head">
+                <img class="auth-logo" src="/logo.ico" alt="">
+                <h1 class="auth-title">请设置管理密码</h1>
+                <p class="auth-sub">第一次启动，先创建一个管理员账号</p>
+            </div>
+
+            <ol class="auth-steps" aria-label="初始化步骤">
+                <li class="auth-step is-active"><span class="auth-step__no">1</span>设置管理密码</li>
+                <li class="auth-step"><span class="auth-step__no">2</span>选择数据来源</li>
+            </ol>
+
+            {% if error %}
+            <div class="alert alert-error">{{ error }}</div>
+            {% endif %}
+
+            {% if notice %}
+            <div class="alert alert-{{ 'success' if notice.kind == 'success' else 'error' }}">{{ notice.text }}</div>
+            {% endif %}
+
+            <form action="/init_admin/credentials" method="post" id="stepOneForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="field">
+                    <label for="username">管理员账号</label>
+                    <input type="text" id="username" name="username" required maxlength="32"
+                           autocomplete="username" placeholder="例如 admin"
+                           value="{{ username or '' }}" autofocus>
+                </div>
+                <div class="field">
+                    <label for="password">管理密码</label>
+                    <input type="password" id="password" name="password" required minlength="4"
+                           autocomplete="new-password" placeholder="至少 4 位">
+                    <div class="field-hint">密码以 PBKDF2 加盐哈希保存，不存明文</div>
+                </div>
+                <div class="field">
+                    <label for="password2">确认密码</label>
+                    <input type="password" id="password2" name="password2" required minlength="4"
+                           autocomplete="new-password" placeholder="再输入一次">
+                </div>
+                <button type="submit" class="btn btn-block">下一步</button>
+            </form>
+
+            <div class="auth-foot">{{ system_name }} · 仅首次启动需要设置</div>
+        </div>
+    </div>
+
+    <script>
+    // 两次密码一致性即时提示
+    (function() {
+        var form = document.getElementById('stepOneForm');
+        var p1 = document.getElementById('password');
+        var p2 = document.getElementById('password2');
+        if (!form || !p1 || !p2) return;
+
+        form.addEventListener('submit', function(e) {
+            if (p1.value !== p2.value) {
+                e.preventDefault();
+                p2.focus();
+                p2.setCustomValidity('两次输入的密码不一致');
+                p2.reportValidity();
+                setTimeout(function() { p2.setCustomValidity(''); }, 2500);
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

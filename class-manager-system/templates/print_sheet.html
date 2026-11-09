@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>打印预览 - {{ system_name }}</title>
+<style>
+    /* 页边距完全交给 CSS：@page 归零，避免和 PrintSettings 的边距叠加导致首行被裁 */
+    @page {
+        size: A4 portrait;
+        margin: 0;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+        color: #000;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .sheet {
+        width: 21cm;
+        height: 29.7cm;
+        padding: 0.5cm 1cm;
+        box-sizing: border-box;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        overflow: hidden;
+        page-break-after: always;
+        break-after: page;
+    }
+
+    /* 与 Word 表格一致：相邻单元格共用一条 0.5pt 边框 */
+    .cards {
+        display: grid;
+        grid-template-columns: repeat({{ 3 }}, {{ column_width_cm }}cm);
+        grid-auto-rows: {{ row_height_cm }}cm;
+        border-top: 0.5pt solid #000;
+        border-left: 0.5pt solid #000;
+    }
+
+    .sheet:last-child { page-break-after: auto; break-after: auto; }
+
+    .card {
+        position: relative;
+        border-right: 0.5pt solid #000;
+        border-bottom: 0.5pt solid #000;
+        padding: 0.06cm 0.19cm 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        gap: 0;
+        overflow: hidden;
+        font-family: "SimSun", "宋体", "Microsoft YaHei", serif;
+    }
+
+    .card-kind {
+        font-size: 10pt;
+        font-weight: 700;
+        line-height: 1.15;
+        white-space: nowrap;
+    }
+
+    /* 对应 Word 里的文本框：位于右上、无边框、16pt 加粗 */
+    .card-amount {
+        position: absolute;
+        right: 0.25cm;
+        top: 0.18cm;
+        font-size: 16pt;
+        line-height: 1;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .card-line {
+        font-size: 9pt;
+        line-height: 1.2;
+        display: flex;
+        justify-content: space-between;
+        gap: 6px;
+    }
+
+    .card-line span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    /* 日期这种定长信息不参与压缩 */
+    .card-line span + span {
+        flex: 0 0 auto;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .card-barcode {
+        text-align: center;
+        margin: 1px 0 0;
+    }
+
+    .card-barcode img {
+        width: 5cm;
+        height: auto;
+        display: inline-block;
+    }
+
+    .card-code {
+        text-align: center;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 8pt;
+        line-height: 1.1;
+    }
+</style>
+</head>
+<body>
+{% set per_page = 21 %}
+{% for page in pages %}
+<div class="sheet">
+  <div class="cards">
+    {% for code in page %}
+    <div class="card">
+        <div class="card-kind">班级积分卡</div>
+        <div class="card-amount">{{ amount }}分</div>
+        <div class="card-line"><span>班级：{{ class_name }}</span></div>
+        <div class="card-line">
+            <span>标题：{{ title }}</span>
+            <span>日期：{{ issue_date }}</span>
+        </div>
+        <div class="card-barcode">
+            <img src="/barcode/{{ code }}.png" alt="{{ code }}" draggable="false">
+        </div>
+        <div class="card-code">{{ code }}</div>
+    </div>
+    {% endfor %}
+    {% for _ in range(per_page - (page | length)) %}
+    <div class="card card--empty"></div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+</body>
+</html>

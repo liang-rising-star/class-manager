@@ -1,0 +1,386 @@
+/* 安装向导专用样式：复用 app.css 的变量与组件，只补向导布局 */
+.wizard-body {
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    background:
+        radial-gradient(120% 90% at 50% 0%, #e8f1ff 0%, #f6f9ff 45%, #ffffff 100%);
+    font-family: var(--font, "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif);
+    color: #0f172a;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.wizard {
+    position: relative;
+    height: 100vh;
+}
+
+.step {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: 30px 40px 24px;
+    overflow-y: auto;          /* 内容再高也不会把底部按钮挤出窗口 */
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+.step.is-active {
+    display: flex;
+    animation: stepIn .32s cubic-bezier(.22, .8, .3, 1) forwards;
+}
+
+@keyframes stepIn {
+    to { opacity: 1; transform: none; }
+}
+
+.step-head h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.step-head p {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+/* 内容区靠上排列，底部按钮固定在下方（欢迎页/完成页仍单独居中） */
+.step-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+.step-foot {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 22px;
+}
+
+.step-foot .btn:last-child { margin-left: auto; }
+
+/* ---------- 欢迎页 ---------- */
+.welcome {
+    margin: auto;
+    text-align: center;
+    max-width: 520px;
+}
+
+.welcome__logo-wrap {
+    position: relative;
+    width: 132px;
+    height: 132px;
+    margin: 0 auto 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.welcome__logo {
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    animation: logoIn .9s cubic-bezier(.2, .9, .25, 1.15) both;
+    filter: drop-shadow(0 10px 22px rgba(37, 99, 235, .18));
+}
+
+@keyframes logoIn {
+    0% { transform: scale(.55); opacity: 0; }
+    60% { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.welcome__ring {
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgba(37, 99, 235, .28);
+    border-radius: 50%;
+    animation: ringOut 2.6s ease-out infinite;
+}
+
+.welcome__ring--2 { animation-delay: 1.3s; }
+
+@keyframes ringOut {
+    0% { transform: scale(.7); opacity: 0; }
+    25% { opacity: .8; }
+    100% { transform: scale(1.35); opacity: 0; }
+}
+
+.welcome__title {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    margin: 0;
+    font-size: 27px;
+    font-weight: 750;
+    letter-spacing: .05em;
+}
+
+.welcome__title span {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(14px);
+    animation: charIn .5s cubic-bezier(.2, .9, .3, 1) forwards;
+    animation-delay: calc(.25s + var(--i) * .06s);
+}
+
+@keyframes charIn { to { opacity: 1; transform: none; } }
+
+.welcome__sub {
+    margin: 14px 0 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.welcome__sub b { color: #2563eb; }
+
+.welcome__desc {
+    margin: 8px 0 26px;
+    font-size: 12.5px;
+    color: #94a3b8;
+    line-height: 1.6;
+}
+
+.welcome__start {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 28px;
+    font-size: 15px;
+}
+
+/* ---------- 路径页 ---------- */
+/* 整块内容垂直居中，跟第三页的节奏一致 */
+.path-wrap {
+    width: 100%;
+}
+
+.path-panel {
+    margin-top: 22px;
+    padding: 20px 22px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+}
+
+.path-panel__label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.path-tip {
+    margin: 14px 2px 0;
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: #94a3b8;
+}
+
+.path-tip b {
+    color: #2563eb;
+    font-weight: 600;
+}
+
+.path-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.path-row input {
+    flex: 1;
+    height: 44px;
+    padding: 0 14px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #0f172a;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    outline: none;
+    transition: border-color .16s, box-shadow .16s;
+}
+
+.path-row input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
+}
+
+.path-hint {
+    margin-top: 12px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    min-height: 20px;
+    color: #64748b;
+}
+
+.path-hint.is-ok { color: #15803d; }
+.path-hint.is-warn { color: #b45309; }
+.path-hint.is-bad { color: #b91c1c; }
+
+/* ---------- 选项页 ---------- */
+/* 三张卡片垂直居中，四周留出呼吸感，不再挤在顶部 */
+.options-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.opt {
+    justify-content: flex-start;     /* 图标 + 文字靠左，滑块推到最右 */
+    gap: 14px;
+    margin-bottom: 0;                /* 间距交给 gap 统一控制 */
+    padding: 16px 18px;
+    border-radius: 14px;
+    background: #fff;
+    transition: border-color .16s, box-shadow .16s, transform .16s;
+}
+
+.opt:hover {
+    border-color: #c7d7f5;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, .08);
+}
+
+.opt .switch__track { margin-left: auto; }
+
+/* 维护页的三张卡片是按钮，去掉默认样式 */
+.opt--action {
+    width: 100%;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.opt--action:hover {
+    border-color: #c7d7f5;
+    transform: translateY(-1px);
+}
+
+.opt--danger .opt__icon {
+    color: #dc2626;
+    background: #fef2f2;
+}
+
+.opt--danger:hover {
+    border-color: #fecaca;
+    box-shadow: 0 6px 18px rgba(220, 38, 38, .08);
+}
+
+.opt__icon {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    color: #2563eb;
+    background: #eef4ff;
+    border-radius: 10px;
+}
+
+.opt .switch__text {
+    gap: 3px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.opt .switch__hint {
+    font-weight: 400;
+}
+
+/* ---------- 进度页 ---------- */
+.progress {
+    margin: 34px 0 0;
+}
+
+.progress__bar {
+    height: 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.progress__fill {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2563eb, #6366f1, #06b6d4);
+    transition: width .28s ease;
+}
+
+.progress__meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: #64748b;
+}
+
+.progress-tip {
+    margin-top: 18px;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+/* ---------- 完成 / 失败 ---------- */
+.done {
+    margin: auto;
+    text-align: center;
+    max-width: 480px;
+    width: 100%;
+}
+
+.done__icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 18px;
+    display: grid;
+    place-items: center;
+    color: #16a34a;
+    background: #dcfce7;
+    border-radius: 50%;
+    animation: logoIn .6s cubic-bezier(.2, .9, .25, 1.15) both;
+}
+
+.done__icon--error {
+    color: #dc2626;
+    background: #fee2e2;
+}
+
+.done__title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.done__sub {
+    margin: 10px 0 22px;
+    font-size: 12.5px;
+    color: #64748b;
+    line-height: 1.6;
+    word-break: break-all;
+}
+
+.done__switch {
+    text-align: left;
+    margin-bottom: 24px;
+}
+
+.btn-lg {
+    height: 46px;
+    padding: 0 26px;
+    font-size: 14.5px;
+}

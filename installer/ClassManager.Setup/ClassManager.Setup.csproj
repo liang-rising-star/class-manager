@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>class-manager-setup</AssemblyName>
+    <RootNamespace>ClassManager.Setup</RootNamespace>
+    <ApplicationIcon>..\..\logo.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <AssemblyTitle>班级管理系统 安装程序</AssemblyTitle>
+    <Product>班级管理系统</Product>
+    <Company>liang-rising-star</Company>
+    <Version>3.0.0</Version>
+    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <FileVersion>3.0.0.0</FileVersion>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- 单文件：目标机不需要装 .NET，界面资源与载荷全部内嵌 -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 向导界面编进 exe，运行时内联成一个 HTML -->
+    <EmbeddedResource Include="wwwroot\index.html" LogicalName="ui.index.html" />
+    <EmbeddedResource Include="wwwroot\app.css" LogicalName="ui.app.css" />
+    <EmbeddedResource Include="wwwroot\wizard.css" LogicalName="ui.wizard.css" />
+    <EmbeddedResource Include="wwwroot\wizard.js" LogicalName="ui.wizard.js" />
+    <EmbeddedResource Include="wwwroot\logo.ico" LogicalName="ui.logo.ico" />
+    <EmbeddedResource Include="..\..\logo.ico" LogicalName="res.logo.ico" />
+
+    <!-- 不再随包输出 wwwroot 目录 -->
+    <None Remove="wwwroot\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 安装包载荷：打包脚本会把 dist\class-manager 压成 payload.zip 放进来 -->
+    <EmbeddedResource Include="payload.zip" Condition="Exists('payload.zip')">
+      <LogicalName>payload.zip</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

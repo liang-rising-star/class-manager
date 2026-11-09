@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>生成积分</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+</head>
+<body>
+    <div class="app-shell">
+        {% set active_page = 'generate' %}
+        {% include "_sidebar.html" %}
+
+    <main class="page">
+        <div class="page-head">
+            <h1 class="page-title">生成积分</h1>
+            <p class="page-desc">每张卡生成独立防伪编号，导出后可直接打印裁剪</p>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="16" rx="3"></rect>
+                    <path d="M12 9v6M9 12h6"></path>
+                </svg>
+                批量生成
+            </div>
+            <p class="card-sub">A4 纸每页 3 列 × 7 行，共 21 张卡片</p>
+
+            {% if error %}
+            <div class="alert alert-error">{{ error }}</div>
+            {% endif %}
+
+            <form action="/generate" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="class_name">班级名称</label>
+                        <input type="text" id="class_name" name="class_name" required
+                               maxlength="40" placeholder="例如 高三(1)班">
+                    </div>
+                    <div class="field">
+                        <label for="title">积分卡标题</label>
+                        <input type="text" id="title" name="title" required
+                               maxlength="40" placeholder="例如 期中学习奖励">
+                    </div>
+                    <div class="field">
+                        <label for="amount">单张面额（分）</label>
+                        <input type="number" id="amount" name="amount" required min="1" step="1"
+                               placeholder="例如 5">
+                    </div>
+                    <div class="field">
+                        <label for="quantity">批量生成数量</label>
+                        <input type="number" id="quantity" name="quantity" required min="1" max="500" step="1"
+                               placeholder="1 - 500"
+                               data-per-page="{{ cards_per_page }}"
+                               data-rows="{{ rows_per_page }}"
+                               data-cols="{{ cols_per_page }}">
+                        <div class="field-hint">单次上限 500 张</div>
+
+                        <div class="page-hint" id="pageHint" hidden>
+                            <span class="page-hint__text" id="pageHintText"></span>
+                            <button type="button" class="page-hint__apply" id="pageHintApply" hidden>
+                                填满整页
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn">生成并导出</button>
+                </div>
+            </form>
+
+            {% if success %}
+            <div class="success-panel">
+                <div id="printFlash" class="alert alert-success" hidden></div>
+                {% if notice %}
+                <div class="alert alert-{{ 'success' if notice.kind == 'success' else 'error' }}">{{ notice.text }}</div>
+                {% endif %}
+                <h3>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 6 9 17l-5-5"></path>
+                    </svg>
+                    生成成功
+                </h3>
+                <p>已生成 {{ quantity }} 张积分卡并导出 Word 文档</p>
+                <div class="form-actions">
+                    <button type="button" id="printBtn" class="btn"
+                            data-printer="{{ printer_value }}">直接打印</button>
+                    <a href="/download/{{ filename }}" class="btn btn-ghost">保存 Word 文档</a>
+                    <span class="file-chip">{{ filename }}</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% include "_history.html" %}
+    </main>
+
+    </div>
+
+    <!-- 打印进度弹窗 -->
+    <dialog id="printDialog" class="modal" aria-labelledby="printTitle">
+        <div class="modal__body">
+            <div class="modal__icon" id="printIcon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M6 9V3h12v6"></path>
+                    <rect x="3" y="9" width="18" height="8" rx="2"></rect>
+                    <path d="M7 17h10v4H7z"></path>
+                </svg>
+            </div>
+            <h3 class="modal__title" id="printTitle">打印积分卡？</h3>
+            <p class="modal__text" id="printText">将把这批积分卡发送到打印机，继续？</p>
+
+            <div class="progress" id="printProgress" hidden>
+                <div class="progress__fill" id="printFill"></div>
+            </div>
+            <div class="progress__meta" id="printPercentBox" hidden><span id="printPercent">0%</span></div>
+
+            <div class="modal__actions">
+                <button type="button" class="btn btn-ghost" id="printCancel">取消</button>
+                <button type="button" class="btn" id="printStart">打印</button>
+                <button type="button" class="btn btn-ghost" id="printClose" hidden>关闭</button>
+            </div>
+        </div>
+    </dialog>
+
+<script>
+// Esc / 点遮罩都不关闭弹窗：必须点对应的按钮
+document.addEventListener('cancel', function (e) {
+    if (e.target && e.target.tagName === 'DIALOG') e.preventDefault();
+}, true);
+
+// 打印弹窗：先确认（取消/打印），确认后显示进度，结束显示关闭
+(function() {
+    var dlg = document.getElementById('printDialog');
+    var fill = document.getElementById('printFill');
+    var percent = document.getElementById('printPercent');
+    var percentBox = document.getElementById('printPercentBox');
+    var progress = document.getElementById('printProgress');
+    var text = document.getElementById('printText');
+    var title = document.getElementById('printTitle');
+    var cancelBtn = document.getElementById('printCancel');
+    var startBtn = document.getElementById('printStart');
+    var closeBtn = document.getElementById('printClose');
+    if (!dlg) return;
+
+    var callbacks = {};
+    var resolver = null;
+
+    function setProgress(value, label) {
+        value = Math.max(0, Math.min(100, Math.round(value)));
+        fill.dataset.value = value;
+        fill.style.width = value + '%';
+        percent.textContent = value + '%';
+        if (label) text.textContent = label;
+    }
+
+    function showConfirm(t, message) {
+        title.textContent = t || '打印积分卡？';
+        text.textContent = message || '将把这批积分卡发送到打印机，继续？';
+        dlg.classList.remove('is-error');
+        progress.hidden = true;
+        percentBox.hidden = true;
+        cancelBtn.hidden = false;
+        startBtn.hidden = false;
+        closeBtn.hidden = true;
+        if (!dlg.open) dlg.showModal();
+
+        return new Promise(function(resolve) {
+            resolver = resolve;
+        });
+    }
+
+    function beginProgress(label) {
+        progress.hidden = false;
+        percentBox.hidden = false;
+        cancelBtn.hidden = true;
+        startBtn.hidden = true;
+        closeBtn.hidden = true;
+        title.textContent = '正在打印';
+        setProgress(8, label || '准备打印任务…');
+    }
+
+    function finish(ok, label) {
+        setProgress(ok ? 100 : Number(fill.dataset.value || 0), label);
+        title.textContent = ok ? '打印任务已发送' : '打印失败';
+        dlg.classList.toggle('is-error', !ok);
+        cancelBtn.hidden = true;
+        startBtn.hidden = true;
+        closeBtn.hidden = false;
+        closeBtn.disabled = false;
+        closeBtn.textContent = '关闭';
+        if (ok) setTimeout(close, 900);
+    }
+
+    function close() {
+        if (dlg.open) dlg.close();
+    }
+
+    cancelBtn.addEventListener('click', function() {
+        close();
+        if (resolver) { var r = resolver; resolver = null; r(false); }
+    });
+
+    startBtn.addEventListener('click', function() {
+        if (resolver) { var r = resolver; resolver = null; r(true); }
+    });
+
+    closeBtn.addEventListener('click', close);
+
+    window.PrintProgress = {
+        ask: showConfirm,
+        begin: beginProgress,
+        update: setProgress,
+        finish: finish,
+        close: close,
+        onDone: function(token, fn) { callbacks[token] = fn; }
+    };
+
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.addEventListener('message', function(e) {
+            var d = e.data;
+            if (!d || d.type !== 'print-progress') return;
+
+            if (d.done) {
+                finish(!d.error, d.text);
+                var fn = callbacks[d.token];
+                if (fn) { delete callbacks[d.token]; fn(d); }
+            } else {
+                setProgress(d.value, d.text);
+            }
+        });
+    }
+})();
+
+// 生成结果面板的「直接打印」：先确认，再执行
+(function() {
+    var btn = document.getElementById('printBtn');
+    if (!btn) return;
+
+    var saveLink = document.querySelector('.success-panel a[href^="/download/"]');
+    var currentBatch = "{{ batch_id or '' }}";
+    if (saveLink && currentBatch && window.chrome && window.chrome.webview) {
+        var saveName = saveLink.getAttribute('href').split('/').pop();
+        window.chrome.webview.addEventListener('message', function(e) {
+            var d = e.data;
+            if (!d || d.type !== 'download' || d.state !== 'completed') return;
+            if (d.filename !== decodeURIComponent(saveName)) return;
+            fetch('/history/' + currentBatch + '/saved', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'csrf_token=' + encodeURIComponent("{{ csrf_token }}")
+            });
+        });
+    }
+
+    var csrf = document.querySelector('input[name="csrf_token"]')
+        ? document.querySelector('input[name="csrf_token"]').value : '';
+
+    var ticker = null;
+    function startTicker() {
+        var steps = [[20, '打开导出文档…'], [45, '生成打印页面…'], [70, '发送到打印机…'], [88, '等待打印队列接收…']];
+        var i = 0;
+        ticker = setInterval(function() {
+            if (i < steps.length) {
+                window.PrintProgress.update(steps[i][0], steps[i][1]);
+                i++;
+            }
+        }, 700);
+    }
+    function stopTicker() { if (ticker) { clearInterval(ticker); ticker = null; } }
+
+    btn.addEventListener('click', function() {
+        if (!window.PrintProgress) return;
+
+        window.PrintProgress.ask('打印这批积分卡？', '{{ quantity }} 张将发送到打印机，点「打印」开始，点「取消」返回。')
+            .then(function(confirmed) {
+                if (!confirmed) return;
+
+                window.PrintProgress.begin('准备打印任务…');
+                btn.disabled = true;
+                startTicker();
+
+                var body = new URLSearchParams({ csrf_token: csrf });
+                if (currentBatch) body.append('batch_id', currentBatch);
+
+                fetch('/print-now', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body.toString()
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    stopTicker();
+                    btn.disabled = false;
+                    window.PrintProgress.finish(!!d.ok, d.message || (d.ok ? '已发送到打印机' : '打印失败'));
+                })
+                .catch(function(err) {
+                    stopTicker();
+                    btn.disabled = false;
+                    window.PrintProgress.finish(false, '打印失败：' + err);
+                });
+            });
+    });
+})();
+</script>
+
+
+<script>
+// 生成数量提示：按 A4 每页排版算「生成多少张正好整页」，避免半页浪费
+(function() {
+    var input = document.getElementById('quantity');
+    var amount = document.getElementById('amount');
+    var hint = document.getElementById('pageHint');
+    var text = document.getElementById('pageHintText');
+    var applyBtn = document.getElementById('pageHintApply');
+    if (!input || !hint) return;
+
+    var perPage = Number(input.dataset.perPage) || 21;
+    var rows = Number(input.dataset.rows) || 7;
+    var cols = Number(input.dataset.cols) || 3;
+    var suggested = 0;
+
+    function fmt(n) { return n.toLocaleString('zh-CN'); }
+
+    function update() {
+        var qty = parseInt(input.value, 10);
+        if (!qty || qty < 1) {
+            hint.hidden = true;
+            return;
+        }
+
+        var pages = Math.ceil(qty / perPage);
+        var exact = pages * perPage;
+        var waste = exact - qty;
+        suggested = exact;
+
+        // 只保留一句结论：生成多少张正好填满几页
+        if (waste === 0) {
+            text.textContent = '正好填满 ' + pages + ' 页';
+            applyBtn.hidden = true;
+        } else {
+            text.textContent = '建议生成 ' + exact + ' 张正好填满 ' + pages + ' 页';
+            applyBtn.hidden = false;
+            applyBtn.textContent = '改成 ' + exact + ' 张';
+        }
+
+        hint.hidden = false;
+        hint.classList.toggle('is-exact', waste === 0);
+    }
+
+    input.addEventListener('input', update);
+
+    applyBtn.addEventListener('click', function() {
+        if (!suggested) return;
+        input.value = suggested;
+        update();
+        input.focus();
+    });
+
+    // 页面加载时如果带了上次的值，也提示一下
+    if (input.value) update();
+})();
+</script>
+</body>
+</html>

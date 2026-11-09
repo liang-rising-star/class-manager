@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>初始化 · 选择数据来源</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+</head>
+<body>
+    <div class="auth-page">
+        <div class="auth-card auth-card--wide">
+            <div class="auth-head">
+                <img class="auth-logo" src="/logo.ico" alt="">
+                <h1 class="auth-title">请选择数据来源</h1>
+                <p class="auth-sub">管理员「{{ username }}」已设置，最后一步：决定积分数据从哪来</p>
+            </div>
+
+            <ol class="auth-steps" aria-label="初始化步骤">
+                <li class="auth-step is-done"><span class="auth-step__no">✓</span>设置管理密码</li>
+                <li class="auth-step is-active"><span class="auth-step__no">2</span>选择数据来源</li>
+            </ol>
+
+            {% if error %}
+            <div class="alert alert-error">{{ error }}</div>
+            {% endif %}
+
+            {% if notice %}
+            <div class="alert alert-{{ 'success' if notice.kind == 'success' else 'error' }}">{{ notice.text }}</div>
+            {% endif %}
+
+            <form action="/init_admin/complete" method="post" class="choice-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="choice-card">
+                    <span class="choice-card__icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 5v14"></path>
+                            <path d="M5 12h14"></path>
+                        </svg>
+                    </span>
+                    <span class="choice-card__body">
+                        <span class="choice-card__title">新建全新数据库</span>
+                        <span class="choice-card__desc">从现在开始记录，里面没有任何历史数据</span>
+                    </span>
+                    <span class="choice-card__go">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="m9 6 6 6-6 6"></path>
+                        </svg>
+                    </span>
+                </button>
+            </form>
+
+            <form action="/import_legacy" method="post" id="legacyForm" class="choice-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="legacy_path" id="legacy_path" value="">
+                <button type="button" class="choice-card" id="importLegacyBtn">
+                    <span class="choice-card__icon choice-card__icon--alt">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 3v12"></path>
+                            <path d="m7 10 5 5 5-5"></path>
+                            <path d="M5 21h14"></path>
+                        </svg>
+                    </span>
+                    <span class="choice-card__body">
+                        <span class="choice-card__title">导入旧版本数据</span>
+                        <span class="choice-card__desc">从 2.x 版本的安装目录读取 scores.db，保留已核销状态</span>
+                    </span>
+                    <span class="choice-card__go">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="m9 6 6 6-6 6"></path>
+                        </svg>
+                    </span>
+                </button>
+            </form>
+
+            <p class="choice-tip">选择「导入旧版本数据」会弹出文件夹选择框，选中旧版程序所在目录即可</p>
+
+            <div class="auth-foot">{{ system_name }} · 完成后自动进入控制台</div>
+        </div>
+    </div>
+
+<script>
+// 桌面版里用原生文件夹选择框（DPI 正常、带本程序图标）；网页版回退到服务端对话框
+(function() {
+    var btn = document.getElementById('importLegacyBtn');
+    var form = document.getElementById('legacyForm');
+    var input = document.getElementById('legacy_path');
+    if (!btn || !form || !input) return;
+
+    function submitWith(path) {
+        input.value = path || '';
+        form.submit();
+    }
+
+    btn.addEventListener('click', function() {
+        var bridge = window.chrome && window.chrome.webview && window.chrome.webview.hostObjects
+            ? window.chrome.webview.hostObjects.desktopBridge : null;
+        if (!bridge) { submitWith(''); return; }          // 网页版：交给服务端弹框
+
+        bridge.PickFolder('选择旧版程序安装目录').then(function(path) {
+            if (!path) return;                            // 用户取消：什么都不做
+            submitWith(path);
+        }).catch(function() { submitWith(''); });
+    });
+})();
+</script>
+</body>
+</html>

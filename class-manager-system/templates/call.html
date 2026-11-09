@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>班级叫号 · {{ system_name }}</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+    <style>
+        .c-bar {
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .c-bar select {
+            width: auto; flex: 0 1 380px; max-width: 420px;
+            padding: 9px 12px; border: 1px solid var(--border);
+            border-radius: 10px; background: #fbfcfe; font: inherit; font-size: 13.5px;
+            color: var(--text); outline: none;
+        }
+        .c-bar select:focus { border-color: var(--primary); background: #fff; }
+        .c-bar .spacer { flex: 1; }
+
+        .c-sep { height: 1px; background: var(--border); margin: 0 0 20px; }
+
+        .c-name {
+            width: 100%; padding: 14px 16px; font-size: 17px; border-radius: 12px;
+            border: 1px solid var(--border); background: #fbfcfe; font-family: inherit;
+            outline: none; margin-bottom: 14px;
+        }
+        .c-name:focus { border-color: var(--primary); background: #fff; }
+
+        .c-tpl { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
+        .c-tpl button { border-radius: 999px; }
+
+        .c-preview {
+            background: #f6f8fc; border-radius: 12px; padding: 14px 16px; font-size: 15px;
+            color: var(--text-strong); margin-bottom: 18px; min-height: 22px;
+        }
+
+        .c-log { list-style: none; padding: 0; margin: 18px 0 0; font-size: 13px; color: var(--text-muted); }
+        .c-log li { padding: 8px 0; border-top: 1px solid var(--border); }
+        .c-log b { color: var(--text-strong); }
+        .c-empty { text-align: center; padding: 50px 20px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        {% set active_page = 'call' %}
+        {% include "_sidebar.html" %}
+
+    <main class="page">
+        <div class="page-head">
+            <h1 class="page-title">班级叫号</h1>
+            <p class="page-desc">选择教室后，一体机会用教室音箱播报</p>
+        </div>
+
+        <div id="cEmpty" class="card c-empty" hidden>
+            还没有添加班级设备。<br><br>
+            <a href="/setting#devices">前往「设置 → 班级设备」添加一体机的 IP 和访问密钥 →</a>
+        </div>
+
+        <section class="card" id="cPanel" hidden>
+            <div class="c-bar">
+                <select id="cDevice"></select>
+                <span class="status-pill" id="cPill">—</span>
+                <span class="spacer"></span>
+            </div>
+
+            <div class="c-sep"></div>
+
+            <input type="text" id="cName" class="c-name" placeholder="姓名或学号，例如：张三 / 25">
+
+            <div class="c-tpl" id="cTpl">
+                <button class="btn btn-ghost btn-sm is-on" data-tpl="{name}同学，请到讲台来">请到讲台</button>
+                <button class="btn btn-ghost btn-sm" data-tpl="请{name}同学准备回答">准备回答</button>
+                <button class="btn btn-ghost btn-sm" data-tpl="{name}同学，请把作业交到办公室">交作业</button>
+                <button class="btn btn-ghost btn-sm" data-tpl="{name}家长，请到校门口接孩子">家长接送</button>
+            </div>
+
+            <div class="field">
+                <label class="field-label">播报内容预览</label>
+                <div class="c-preview" id="cPreview">—</div>
+            </div>
+
+            <div class="field">
+                <label class="field-label">语速 <span id="cRateVal">0</span></label>
+                <input type="range" id="cRate" min="-6" max="6" step="1" value="0" style="width:100%">
+            </div>
+
+            <div class="c-bar">
+                <button class="btn" id="cCallBtn">开始叫号</button>
+                <button class="btn btn-ghost" id="cStopBtn">停止播报</button>
+            </div>
+
+            <ul class="c-log" id="cLog"></ul>
+        </section>
+    </main>
+
+    </div>
+
+<script src="/static/js/slider.js?v={{ css_version }}"></script>
+<script>
+(function () {
+    var devices = {{ devices|tojson }};
+    var csrf = {{ csrf_token|tojson }};
+    var emptyEl = document.getElementById('cEmpty');
+    var panelEl = document.getElementById('cPanel');
+    var sel = document.getElementById('cDevice');
+    var current = null;
+    var tpl = '{name}同学，请到讲台来';
+
+    if (!devices.length) { emptyEl.hidden = false; return; }
+    panelEl.hidden = false;
+
+    devices.forEach(function (d) {
+        var o = document.createElement('option');
+        o.value = d.id;
+        o.textContent = (d.name || d.host) + (d.room ? '（' + d.room + '）' : '');
+        sel.appendChild(o);
+    });
+
+    current = devices[0];
+    sel.value = current.id;
+    sel.addEventListener('change', function () {
+        current = devices.filter(function (d) { return d.id === sel.value; })[0] || null;
+        refreshPill();
+    });
+
+    function refreshPill() {
+        if (!current) return;
+        fetch('/device/' + current.id + '/status')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (st) {
+                if (!st) return;
+                var pill = document.getElementById('cPill');
+                var online = st.reachable || (st.video && st.video.online);
+                pill.className = 'status-pill ' + (online ? 'status-pill--ok' : 'status-pill--bad');
+                pill.textContent = online ? '在线' : (st.error ? '连接失败' : '离线');
+            })
+            .catch(function () { });
+    }
+
+    // 话术
+    Array.prototype.forEach.call(document.querySelectorAll('#cTpl button'), function (b) {
+        b.onclick = function () {
+            Array.prototype.forEach.call(document.querySelectorAll('#cTpl button'), function (x) {
+                x.classList.remove('is-on');
+            });
+            b.classList.add('is-on');
+            tpl = b.getAttribute('data-tpl');
+            updatePreview();
+        };
+    });
+
+    document.getElementById('cName').addEventListener('input', updatePreview);
+
+    if (window.initSlider) initSlider(document.getElementById('cRate'));
+    document.getElementById('cRate').addEventListener('input', function () {
+        document.getElementById('cRateVal').textContent = this.value;
+    });
+
+    function text() {
+        var n = document.getElementById('cName').value.trim();
+        return tpl.replace('{name}', n || '同学');
+    }
+
+    function updatePreview() {
+        var n = document.getElementById('cName').value.trim();
+        document.getElementById('cPreview').textContent = n ? text() : '（先输入姓名或学号）';
+    }
+
+    function action(act, payload) {
+        var body = new URLSearchParams();
+        body.set('action', act);
+        body.set('csrf_token', csrf);
+        body.set('text', (payload && payload.text) || '');
+        body.set('command', '');
+        return fetch('/device/' + current.id + '/action', {
+            method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (r) { return r.json(); });
+    }
+
+    document.getElementById('cCallBtn').onclick = function () {
+        if (!current) return;
+        var content = text();
+        action('speak', { text: content }).then(function (res) {
+            log((current.name || current.host) + ' · ' + content, res && res.ok);
+        }).catch(function () {
+            log((current.name || current.host) + ' · 发送失败', false);
+        });
+        document.getElementById('cName').value = '';
+        updatePreview();
+    };
+
+    document.getElementById('cStopBtn').onclick = function () {
+        if (!current) return;
+        action('speak_stop');
+        log('已请求停止播报', true);
+    };
+
+    function log(msg, ok) {
+        var ul = document.getElementById('cLog');
+        var li = document.createElement('li');
+        var t = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        li.innerHTML = '<b>' + t + '</b>　' + esc(msg) +
+            (ok === false ? '　<span style="color:#dc2626">失败</span>' : '');
+        ul.insertBefore(li, ul.firstChild);
+        while (ul.children.length > 20) ul.removeChild(ul.lastChild);
+    }
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    updatePreview();
+    refreshPill();
+    setInterval(refreshPill, 4000);
+})();
+</script>
+</body>
+</html>

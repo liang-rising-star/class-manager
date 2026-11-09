@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>系统设置</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+    <script>
+// Esc / 点遮罩都不关闭弹窗：必须点对应的按钮
+document.addEventListener('cancel', function (e) {
+    if (e.target && e.target.tagName === 'DIALOG') e.preventDefault();
+}, true);
+window.SOUND_SETTINGS = { ok: "{{ sound_ok }}", fail: "{{ sound_fail }}" };</script>
+    <script src="/static/js/sound.js?v={{ css_version }}"></script>
+    <style>
+        .dev-list { margin-bottom: 16px; }
+        .dev-actions { margin-top: 4px; }
+        .dev-row { display: flex; align-items: center; gap: 12px; padding: 11px 0;
+                   border-bottom: 1px solid var(--border, #eef1f6); font-size: 13.5px; }
+        .dev-row:first-child { border-top: 1px solid var(--border, #eef1f6); }
+        .dev-row .nm { font-weight: 650; }
+        .dev-row .ad { color: var(--text-muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+        .dev-row .spacer { flex: 1; }
+        .dev-empty { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
+        .dev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 14px; }
+
+        /* 设备弹窗：字段多，放宽到 560px 并排两列 */
+        .modal--device { width: min(560px, calc(100vw - 40px)); }
+        .modal--device .dev-grid { grid-template-columns: 1fr 1fr; }
+        .modal--device .field { margin-bottom: 12px; }
+        .modal--device .modal__text { margin-bottom: 16px; }
+        @media (max-width: 560px) { .modal--device .dev-grid { grid-template-columns: 1fr; } }
+        .dev-status { margin-top: 10px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap; }
+        .dev-status.ok { color: var(--success, #16a34a); }
+        .dev-status.bad { color: #dc2626; }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        {% set active_page = 'setting' %}
+        {% include "_sidebar.html" %}
+
+    <main class="page">
+        <div class="page-head">
+            <h1 class="page-title">系统设置</h1>
+            <p class="page-desc">修改管理员口令，或把系统恢复到出厂状态</p>
+        </div>
+
+        {% if notice %}
+        <div class="alert alert-{{ 'success' if notice.kind == 'success' else ('error' if notice.kind == 'error' else 'info') }}">{{ notice.text }}</div>
+        {% endif %}
+
+        <div class="card" id="desktop-card">
+            <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="12" rx="2"></rect>
+                    <path d="M8 20h8M12 16v4"></path>
+                </svg>
+                桌面应用
+            </div>
+            <p class="card-sub">仅在桌面版（托盘常驻）下生效，网页版不受影响</p>
+
+            <form action="/desktop/autostart" method="post" data-autosave="1">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label class="switch">
+                    <span class="switch__text">
+                        开机自动启动桌面版
+                        <span class="switch__hint">开机后仅在托盘运行，双击图标再打开主界面</span>
+                    </span>
+                    <input type="checkbox" name="autostart" {% if autostart %}checked{% endif %}>
+                    <span class="switch__track" aria-hidden="true"></span>
+                </label>
+            </form>
+
+            <form action="/boot/settings" method="post" class="card-block" data-autosave="1">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="field">
+                    <label for="bootMode">启动动画</label>
+                    <select id="bootMode" name="boot_mode">
+                        {% for key, label in boot_modes.items() %}
+                        <option value="{{ key }}" {% if boot_mode == key %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M6 9V3h12v6"></path>
+                    <rect x="3" y="9" width="18" height="8" rx="2"></rect>
+                    <path d="M7 17h10v4H7z"></path>
+                </svg>
+                打印
+            </div>
+            <p class="card-sub">生成积分后点「直接打印」时使用的打印机</p>
+
+            <form action="/print/settings" method="post" data-autosave="1">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="field">
+                    <label for="printer">使用的打印机</label>
+                    <select id="printer" name="printer">
+                        <option value="" {% if not printer_value %}selected{% endif %}>
+                            系统默认打印机{% if default_printer %}（当前：{{ default_printer }}）{% endif %}
+                        </option>
+                        {% for p in printers %}
+                        <option value="{{ p }}" {% if printer_value == p %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="field-hint">
+                        {% if printers %}
+                        选「系统默认打印机」时会跟随 Windows 设置变化
+                        {% else %}
+                        未检测到打印机，请先在系统中添加
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="card" id="sound-card">
+            <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M11 5 6 9H3v6h3l5 4V5Z"></path>
+                    <path d="M16 9a4 4 0 0 1 0 6"></path>
+                    <path d="M19 6a8 8 0 0 1 0 12"></path>
+                </svg>
+                核销提示音
+            </div>
+            <p class="card-sub">单个核销扫码后播放：成功一个音、失败一个音，选完会立即试听</p>
+
+            <input type="file" id="soundFile" accept="audio/*" hidden>
+
+            <form action="/sound/settings" method="post" data-autosave="1">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="okSound">核销成功</label>
+                        <div class="sound-inline">
+                            <select id="okSound" name="ok_sound"></select>
+                            <button type="button" class="sound-play" data-kind="ok" title="试听">▶</button>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="failSound">核销失败</label>
+                        <div class="sound-inline">
+                            <select id="failSound" name="fail_sound"></select>
+                            <button type="button" class="sound-play" data-kind="fail" title="试听">▶</button>
+                        </div>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+
+        <div class="card" id="backup-card">
+            <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 12a9 9 0 1 1-3-6.7"></path>
+                    <path d="M21 3v6h-6"></path>
+                </svg>
+                数据备份
+            </div>
+            <p class="card-sub">每天到点自动把配置和数据库打包到 data/backups，也可以随时手动备份；改完设置会自动保存</p>
+
+            <div class="backup-section">
+                <div class="backup-section__title">
+                    定时备份
+                    <span class="autosave-badge" id="backupSaved" hidden>已保存</span>
+                </div>
+
+                <form action="/backup/settings" method="post" id="backupScheduleForm" data-autosave="1">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="tpField">每天备份时间</label>
+                            <div class="tp" id="tp">
+                                <button type="button" class="tp__field" id="tpField">
+                                    <span class="tp__text" id="tpText">{{ backup_time }}</span>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                         stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <circle cx="12" cy="12" r="9"></circle>
+                                        <path d="M12 7.5V12l3 2"></path>
+                                    </svg>
+                                </button>
+                                <input type="hidden" id="backup_time" name="backup_time" value="{{ backup_time }}">
+
+                                <div class="tp__pop" id="tpPop" hidden>
+                                    <div class="tp__title">选择备份时间</div>
+
+                                    <div class="tp__preview">
+                                        <span id="tpPreviewH">02</span><em>:</em><span id="tpPreviewM">00</span>
+                                    </div>
+
+                                    <div class="tp__wheels">
+                                        <div class="tp__band" aria-hidden="true"></div>
+                                        <div class="tp__wheel" id="tpHWheel" tabindex="0"></div>
+                                        <div class="tp__wheel" id="tpMWheel" tabindex="0"></div>
+                                    </div>
+
+                                    <div class="tp__presets">
+                                        <button type="button" class="tp__preset" data-time="00:00">00:00</button>
+                                        <button type="button" class="tp__preset" data-time="02:00">02:00</button>
+                                        <button type="button" class="tp__preset" data-time="08:00">08:00</button>
+                                        <button type="button" class="tp__preset" data-time="12:00">12:00</button>
+                                        <button type="button" class="tp__preset" data-time="22:00">22:00</button>
+                                    </div>
+
+                                    <div class="tp__actions">
+                                        <button type="button" class="btn btn-ghost btn-sm" id="tpCancel">取消</button>
+                                        <button type="button" class="btn btn-sm" id="tpOk">确定</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="field-hint">
+                                {% if next_backup %}下次自动备份：{{ next_backup }}{% else %}定时备份已关闭{% endif %}
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label for="keep">最多保留份数</label>
+                            <input type="number" id="keep" name="keep" min="1" max="200" step="1"
+                                   value="{{ backup_keep }}" required>
+                        </div>
+                    </div>
+
+                    <label class="switch">
+                        <span class="switch__text">
+                            启用定时备份
+                            <span class="switch__hint">每天到点自动把配置和数据库打包备份一次</span>
+                        </span>
+                        <input type="checkbox" name="enabled" {% if backup_enabled %}checked{% endif %}>
+                        <span class="switch__track" aria-hidden="true"></span>
+                    </label>
+                </form>
+            </div>
+
+            <div class="card-block">
+                <div class="backup-section__title">立即备份</div>
+
+                <div class="stat-row">
+                    <div class="stat-item">
+                        <span class="stat-label">最近备份</span>
+                        <span class="stat-value">{{ last_backup or '尚未备份' }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">已有备份</span>
+                        <span class="stat-value">{{ backup_count }} 份</span>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <form action="/backup/now" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn">立即备份</button>
+                    </form>
+                    <form action="/backup/open" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-ghost">打开备份文件夹</button>
+                    </form>
+                    <form action="/import_legacy" method="post" id="legacyForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="legacy_path" id="legacy_path" value="">
+                        <button type="button" id="importLegacyBtn" class="btn btn-ghost">导入 2.x 旧库</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="card" id="devices">
+            <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="2.5" y="4" width="19" height="12" rx="2.2"></rect>
+                    <path d="M8 20h8M12 16v4"></path>
+                </svg>
+                班级设备
+            </div>
+            <p class="card-sub">
+                添加教室里的一体机：填 IP、端口和访问密钥（密钥到一体机主界面复制）。<br>
+                默认 TCP 端口 <b>3457</b>；视频走 UDP，端口默认与 TCP 相同，也可单独指定。
+            </p>
+
+            <div id="devList" class="dev-list"></div>
+
+            <div class="dev-actions">
+                <button type="button" class="btn" id="devAddBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+                         aria-hidden="true" style="margin-right:6px;vertical-align:-2px">
+                        <path d="M12 5v14M5 12h14"></path>
+                    </svg>
+                    添加设备
+                </button>
+            </div>
+        </div>
+
+
+
+        <div class="card">
+            <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"></path>
+                </svg>
+                清理
+            </div>
+            <p class="card-sub">删除不再需要的文件，清理前会先确认</p>
+
+            <div class="cleanup-row">
+                <div class="cleanup-main">
+                    <span class="cleanup-name">已生成的导出文件</span>
+                    <span class="cleanup-meta">{{ cache_count }} 个 · {{ cache_size }}</span>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" data-clean="cache"
+                        data-count="{{ cache_count }}" data-size="{{ cache_size }}">清理</button>
+            </div>
+
+            <div class="cleanup-row">
+                <div class="cleanup-main">
+                    <span class="cleanup-name">垃圾文件</span>
+                    <span class="cleanup-meta">{{ junk_count }} 项 · {{ junk_size }}</span>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" data-clean="junk"
+                        data-count="{{ junk_count }}" data-size="{{ junk_size }}">清理</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+                    <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+                </svg>
+                修改密码
+            </div>
+            <p class="card-sub">修改后立即生效，当前会话保持登录状态</p>
+
+            <div class="form-actions">
+                <button type="button" id="openPassword" class="btn btn-ghost">修改密码</button>
+            </div>
+        </div>
+
+        <div class="danger-card">
+            <h3>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 9v4M12 17h.01"></path>
+                    <path d="M10.3 3.9 2.4 17a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+                </svg>
+                危险操作
+            </h3>
+            <p>恢复出厂设置将清除所有积分数据、导出文件和管理员账号，系统将回到初始状态。此操作不可撤销。</p>
+            <div class="form-actions">
+                <button type="button" id="openReset" class="btn btn-danger">恢复出厂设置</button>
+            </div>
+        </div>
+        <footer class="page-footer">
+            <div class="page-footer__brand">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3 4 6.5v5c0 4.5 3.4 8.2 8 9.5 4.6-1.3 8-5 8-9.5v-5L12 3Z"></path>
+                    <path d="m9 12 2 2 4-4"></path>
+                </svg>
+                班级管理系统
+                <span class="page-footer__version">v{{ app_version }}</span>
+            </div>
+            <p class="page-footer__line">© 2026 <strong>liang-rising-star</strong> · 保留所有权利</p>
+            <p class="page-footer__meta">
+                本程序为自由软件，依据 GNU GPL v3 发布，不含任何担保；
+                <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener noreferrer"
+                   class="page-footer__link">查看许可证</a>
+            </p>
+            <p class="page-footer__meta">
+                本系统用于班级积分卡的生成与核销，所有数据均保存在本机，不上传任何服务器。
+            </p>
+            <p class="page-footer__meta">
+                项目地址：
+                <a href="https://github.com/liang-rising-star/class-manager" target="_blank" rel="noopener noreferrer"
+                   class="page-footer__link">github.com/liang-rising-star/class-manager</a>
+            </p>
+        </footer>
+
+        <div class="save-toast" id="saveToast" hidden>已保存</div>
+    </main>
+
+    <!-- 清理确认弹窗 -->
+    <dialog id="cleanDialog" class="modal" aria-labelledby="cleanTitle">
+        <form method="post" action="/cleanup/cache" class="modal__body" id="cleanForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="modal__icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"></path>
+                </svg>
+            </div>
+            <h3 class="modal__title" id="cleanTitle">确认清理？</h3>
+            <p class="modal__text" id="cleanText"></p>
+            <div class="modal__actions">
+                <button type="button" class="btn btn-ghost" id="cleanCancel">取消</button>
+                <button type="submit" class="btn btn-danger">确认清理</button>
+            </div>
+        </form>
+    </dialog>
+
+    </div>
+
+<!-- 修改密码：弹窗里输入，确认后提交 -->
+        <dialog id="deviceDialog" class="modal modal--device" aria-labelledby="deviceDialogTitle">
+            <form class="modal__body" id="devForm" autocomplete="off">
+                <input type="hidden" name="device_id" value="">
+                <div class="modal__icon modal__icon--info">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="2.5" y="4" width="19" height="12" rx="2.2"></rect>
+                        <path d="M8 20h8M12 16v4"></path>
+                    </svg>
+                </div>
+                <h3 class="modal__title" id="deviceDialogTitle">添加设备</h3>
+                <p class="modal__text" id="deviceDialogSub">
+                    填一体机的 IP、端口和访问密钥（密钥在一体机主界面「设备信息」里复制）。
+                </p>
+
+                <div class="field">
+                    <label class="field-label">一键配置码（可选）</label>
+                    <div style="display:flex;gap:8px">
+                        <textarea id="devCode" rows="2"
+                                  placeholder="粘贴一体机端的「一键配置码」或「对接信息」，自动填好下面的信息"
+                                  style="width:100%;resize:vertical;padding:9px 12px;border:1px solid var(--border);
+                                         border-radius:10px;background:#fbfcfe;font:inherit;font-size:13px;
+                                         outline:none;line-height:1.5"></textarea>
+                        <button type="button" class="btn btn-ghost" id="devCodeApply" style="white-space:nowrap">解析</button>
+                    </div>
+                </div>
+
+                <div class="dev-grid">
+                    <div class="field">
+                        <label class="field-label">名称</label>
+                        <input type="text" name="name" placeholder="例如：3-2 一体机">
+                    </div>
+                    <div class="field">
+                        <label class="field-label">教室 / 班级</label>
+                        <input type="text" name="room" placeholder="例如：三年级二班">
+                    </div>
+                    <div class="field">
+                        <label class="field-label">IP 地址</label>
+                        <input type="text" name="host" placeholder="192.168.1.50">
+                    </div>
+                    <div class="field">
+                        <label class="field-label">TCP 端口</label>
+                        <input type="text" name="port" value="{{ device_default_port }}" placeholder="3457">
+                    </div>
+                    <div class="field">
+                        <label class="field-label">UDP 视频端口</label>
+                        <input type="text" name="video_port" placeholder="留空＝与 TCP 相同">
+                    </div>
+                    <div class="field">
+                        <label class="field-label">访问密钥</label>
+                        <input type="text" name="key" placeholder="xxxx-xxxx-xxxx-xxxx">
+                    </div>
+                </div>
+
+                <div class="dev-status" id="devStatus"></div>
+
+                <div class="modal__actions" style="margin-top:16px">
+                    <button type="button" class="btn btn-ghost" id="devProbe">测试连接</button>
+                    <button type="button" class="btn btn-ghost" id="devCancel">取消</button>
+                    <button type="submit" class="btn" id="devSave">保存</button>
+                </div>
+            </form>
+        </dialog>
+
+<dialog id="passwordDialog" class="modal" aria-labelledby="passwordTitle"
+        {% if success or wrong_password or message %}data-autoshow="1"{% endif %}>
+    <form action="/setting" method="post" class="modal__body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="modal__icon modal__icon--info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+                <path d="M8 10V7a4 4 0 1 1 8 0v3"></path>
+            </svg>
+        </div>
+        <h3 class="modal__title" id="passwordTitle">修改管理密码</h3>
+        <p class="modal__text">先输入当前密码验证身份，再设置新的管理密码；保存后立即生效。</p>
+
+        {% if success %}
+        <div class="alert alert-success" style="margin-bottom:16px">密码修改成功</div>
+        {% elif wrong_password %}
+        <div class="alert alert-error" style="margin-bottom:16px">当前密码错误，请重新输入</div>
+        {% elif message %}
+        <div class="alert alert-error" style="margin-bottom:16px">{{ message }}</div>
+        {% endif %}
+
+        <div class="field">
+            <label for="current_password">当前密码</label>
+            <input type="password" id="current_password" name="current_password" required
+                   autocomplete="current-password" placeholder="当前登录密码">
+        </div>
+
+        <div class="field">
+            <label for="password">新密码</label>
+            <input type="password" id="password" name="password" required minlength="4"
+                   autocomplete="new-password" placeholder="至少 4 位">
+            <div class="field-hint">至少 4 位，以 PBKDF2 加盐哈希保存</div>
+        </div>
+
+        <div class="field">
+            <label for="password2">确认新密码</label>
+            <input type="password" id="password2" name="password2" required minlength="4"
+                   autocomplete="new-password" placeholder="再输入一次">
+        </div>
+
+        <div class="modal__actions">
+            <button type="button" id="passwordCancel" class="btn btn-ghost">取消</button>
+            <button type="submit" class="btn">确认修改</button>
+        </div>
+    </form>
+</dialog>
+
+<!-- 恢复出厂设置：输入密码确认 -->
+<dialog id="resetDialog" class="modal" aria-labelledby="resetTitle"
+        {% if reset_wrong_password %}data-autoshow="1"{% endif %}>
+    <form action="/reset" method="post" class="modal__body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="modal__icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 9v4M12 17h.01"></path>
+                <path d="M10.3 3.9 2.4 17a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+            </svg>
+        </div>
+        <h3 class="modal__title" id="resetTitle">恢复到出厂设置？</h3>
+        <p class="modal__text">
+            将清除全部积分记录、导出的 Word 文件和管理员账号，系统回到初始状态。<strong>此操作不可撤销。</strong>
+        </p>
+
+        {% if reset_wrong_password %}
+        <div class="alert alert-error" style="margin-bottom:16px">当前密码错误，请重新输入</div>
+        {% endif %}
+
+        <div class="field">
+            <label for="reset_password">输入当前密码以确认</label>
+            <input type="password" id="reset_password" name="reset_password" required
+                   autocomplete="current-password" placeholder="当前登录密码">
+        </div>
+
+        <div class="reset-options">
+            <label class="check-row">
+                <input type="checkbox" name="keep_settings" value="1">
+                <span class="check-row__body">
+                    <b>保留当前系统的设置</b>
+                    <span>打印机、提示音、备份计划、开机自启等设置不会被重置</span>
+                </span>
+            </label>
+
+            <label class="check-row">
+                <input type="checkbox" name="keep_admin" value="1">
+                <span class="check-row__body">
+                    <b>保留管理员账号和密码</b>
+                    <span>重置后无需重新设置密码，直接选择数据来源即可</span>
+                </span>
+            </label>
+        </div>
+
+        <div class="modal__actions">
+            <button type="button" id="resetCancel" class="btn btn-ghost">取消</button>
+            <button type="submit" class="btn btn-danger">确认重置</button>
+        </div>
+    </form>
+</dialog>
+
+<script>
+(function() {
+    var openBtn = document.getElementById('openReset');
+    var dialog = document.getElementById('resetDialog');
+    if (!openBtn || !dialog) return;
+
+    var pwd = dialog.querySelector('input[type="password"]');
+
+    // 上一次失败留下的错误提示只在自动重开时显示；用户主动打开时先清掉
+    function clearError() {
+        var err = dialog.querySelector('.alert');
+        if (err) err.remove();
+        delete dialog.dataset.autoshow;
+    }
+
+    function open(keepError) {
+        if (!keepError) clearError();
+        if (typeof dialog.showModal === 'function') {
+            dialog.showModal();
+            if (pwd) { pwd.focus(); pwd.select(); }
+        }
+    }
+
+    openBtn.addEventListener('click', function() { open(false); });
+
+    document.getElementById('resetCancel').addEventListener('click', function() {
+        dialog.close();
+    });
+
+    // 密码输错被服务端打回时，自动重新打开弹窗（保留错误提示）
+    if (dialog.dataset.autoshow === '1') open(true);
+})();
+
+// 清理确认：先弹窗提醒，确认后再提交
+(function() {
+    var dlg = document.getElementById('cleanDialog');
+    var form = document.getElementById('cleanForm');
+    var title = document.getElementById('cleanTitle');
+    var text = document.getElementById('cleanText');
+    if (!dlg || !form) return;
+
+    var CONFIG = {
+        cache: {
+            action: '/cleanup/cache',
+            title: '清理已生成的导出文件？',
+            text: function (n, size) { return '将删除导出目录里的 ' + n + ' 个 Word 文件（共 ' + size + '），已发出去的纸质卡不受影响。'; }
+        },
+        junk: {
+            action: '/cleanup/junk',
+            title: '清理垃圾文件？',
+            text: function (n, size) { return '将删除 ' + n + ' 项 Python 缓存与临时文件（共 ' + size + '），不影响数据和程序运行。'; }
+        }
+    };
+
+    [].forEach.call(document.querySelectorAll('[data-clean]'), function (btn) {
+        btn.addEventListener('click', function () {
+            var kind = btn.dataset.clean;
+            var cfg = CONFIG[kind];
+            if (!cfg) return;
+            form.action = cfg.action;
+            title.textContent = cfg.title;
+            text.textContent = cfg.text(btn.dataset.count, btn.dataset.size);
+            dlg.showModal();
+        });
+    });
+
+    document.getElementById('cleanCancel').addEventListener('click', function () { dlg.close(); });
+})();
+
+</script>
+
+<script>
+// 桌面版里用原生文件夹选择框（DPI 正常、带本程序图标）；网页版回退到服务端对话框
+(function() {
+    var btn = document.getElementById('importLegacyBtn');
+    var form = document.getElementById('legacyForm');
+    var input = document.getElementById('legacy_path');
+    if (!btn || !form || !input) return;
+
+    function submitWith(path) {
+        input.value = path || '';
+        form.submit();
+    }
+
+    btn.addEventListener('click', function() {
+        var bridge = window.chrome && window.chrome.webview && window.chrome.webview.hostObjects
+            ? window.chrome.webview.hostObjects.desktopBridge : null;
+        if (!bridge) { submitWith(''); return; }          // 网页版：交给服务端弹框
+
+        bridge.PickFolder('选择旧版程序安装目录').then(function(path) {
+            if (!path) return;                            // 用户取消：什么都不做
+            submitWith(path);
+        }).catch(function() { submitWith(''); });
+    });
+})();
+
+// 提交后保持在原来的滚动位置（避免每次操作完都被弹回页面顶部）
+(function() {
+    var KEY = 'class-manager:setting-scroll';
+
+    // 任何表单提交前记下当前位置
+    document.addEventListener('submit', function() {
+        try { sessionStorage.setItem(KEY, String(window.scrollY || window.pageYOffset || 0)); } catch (e) {}
+    }, true);
+
+    // 页面加载后还原一次，用完即清
+    try {
+        var saved = sessionStorage.getItem(KEY);
+        if (saved !== null) {
+            sessionStorage.removeItem(KEY);
+            var y = parseInt(saved, 10) || 0;
+            if (y > 0) {
+                window.scrollTo(0, y);
+                // 等一帧，防止弹窗/提示条插入后高度变化把位置顶回去
+                requestAnimationFrame(function() { window.scrollTo(0, y); });
+            }
+        }
+    } catch (e) {}
+})();
+
+</script>
+
+
+
+<script>
+// 手搓时间选择器：滚轮吸附 + 预览 + 快捷时间 + 取消/确定
+(function() {
+    var root = document.getElementById('tp');
+    if (!root) return;
+
+    var field = document.getElementById('tpField');
+    var pop = document.getElementById('tpPop');
+    var text = document.getElementById('tpText');
+    var input = document.getElementById('backup_time');
+    var wheelH = document.getElementById('tpHWheel');
+    var wheelM = document.getElementById('tpMWheel');
+    var prevH = document.getElementById('tpPreviewH');
+    var prevM = document.getElementById('tpPreviewM');
+    var btnOk = document.getElementById('tpOk');
+    var btnCancel = document.getElementById('tpCancel');
+    var ITEM = 40;
+
+    var current = parse(input.value);
+    var draft = { h: current.h, m: current.m };
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function parse(value) {
+        var p = String(value || '').split(':');
+        var h = parseInt(p[0], 10), m = parseInt(p[1], 10);
+        return {
+            h: isNaN(h) ? 2 : Math.min(23, Math.max(0, h)),
+            m: isNaN(m) ? 0 : Math.min(59, Math.max(0, m))
+        };
+    }
+
+    function fill(wheel, count, key) {
+        wheel.innerHTML = '';
+        // 上下各留半个可视高度，首尾也能滚到正中
+        var pad = document.createElement('div');
+        pad.style.height = (ITEM * 2) + 'px';
+        wheel.appendChild(pad);
+
+        for (var i = 0; i < count; i++) {
+            var item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'tp__item';
+            item.dataset.value = String(i);
+            item.textContent = pad2(i);
+            item.addEventListener('click', function() {
+                var index = Number(this.dataset.value);
+                draft[key] = index;
+                wheel.scrollTo({ top: index * ITEM, behavior: 'smooth' });
+                render();
+            });
+            wheel.appendChild(item);
+        }
+
+        var tail = document.createElement('div');
+        tail.style.height = (ITEM * 2) + 'px';
+        wheel.appendChild(tail);
+    }
+
+    function pad2(n) { return n < 10 ? '0' + n : String(n); }
+
+    function render() {
+        prevH.textContent = pad2(draft.h);
+        prevM.textContent = pad2(draft.m);
+        [wheelH, wheelM].forEach(function(wheel) {
+            var key = wheel === wheelH ? draft.h : draft.m;
+            [].forEach.call(wheel.querySelectorAll('.tp__item'), function(item) {
+                item.classList.toggle('is-active', Number(item.dataset.value) === key);
+            });
+        });
+    }
+
+    function scrollTo(wheel, value) {
+        wheel.scrollTop = value * ITEM;
+    }
+
+    function readWheel(wheel, key) {
+        var index = Math.round(wheel.scrollTop / ITEM);
+        index = Math.max(0, Math.min(wheel.children.length - 5, index));
+        draft[key] = index;
+        render();
+    }
+
+    function bindWheel(wheel, key) {
+        var timer = null;
+        wheel.addEventListener('scroll', function() {
+            clearTimeout(timer);
+            timer = setTimeout(function() { readWheel(wheel, key); }, 90);
+        });
+    }
+
+    function position() {
+        // 用 fixed 定位并把弹层夹在可视区域内，避免被窗口裁掉
+        var rect = field.getBoundingClientRect();
+        var height = pop.offsetHeight;
+        var width = pop.offsetWidth;
+
+        var top = rect.bottom + 8;
+        if (top + height > window.innerHeight - 12) top = rect.top - height - 8;
+        if (top < 12) top = Math.max(12, window.innerHeight - height - 12);
+
+        var left = Math.min(rect.left, window.innerWidth - width - 12);
+        pop.style.position = 'fixed';
+        pop.style.top = top + 'px';
+        pop.style.left = Math.max(12, left) + 'px';
+    }
+
+    function open() {
+        draft = { h: current.h, m: current.m };
+        pop.hidden = false;
+        root.classList.add('is-open');
+        render();
+        position();
+
+        requestAnimationFrame(function() {
+            scrollTo(wheelH, draft.h);
+            scrollTo(wheelM, draft.m);
+        });
+    }
+
+    function close() {
+        pop.hidden = true;
+        root.classList.remove('is-open');
+        pop.style.position = '';
+        pop.style.top = '';
+        pop.style.left = '';
+    }
+
+    function apply() {
+        current = { h: draft.h, m: draft.m };
+        var value = pad2(current.h) + ':' + pad2(current.m);
+        text.textContent = value;
+        input.value = value;
+        close();
+    }
+
+    fill(wheelH, 24, 'h');
+    fill(wheelM, 60, 'm');
+    bindWheel(wheelH, 'h');
+    bindWheel(wheelM, 'm');
+    render();
+
+    field.addEventListener('click', function(e) {
+        e.stopPropagation();
+        pop.hidden ? open() : close();
+    });
+
+    btnOk.addEventListener('click', apply);
+    btnCancel.addEventListener('click', close);
+
+    [].forEach.call(pop.querySelectorAll('.tp__preset'), function(chip) {
+        chip.addEventListener('click', function() {
+            var p = parse(this.dataset.time);
+            draft = { h: p.h, m: p.m };
+            render();
+            scrollTo(wheelH, p.h);
+            scrollTo(wheelM, p.m);
+        });
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!root.contains(e.target)) close();
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') close();
+    });
+
+    window.addEventListener('resize', function() { if (!pop.hidden) position(); });
+    window.addEventListener('scroll', function() { if (!pop.hidden) position(); }, true);
+})();
+</script>
+<script>
+// 核销提示音选择器
+(function() {
+    if (!window.SoundKit) return;
+    SoundKit.mountPicker({ okSelect: 'okSound', failSelect: 'failSound', fileInput: 'soundFile' });
+})();
+</script>
+
+<script>
+// 设置项统一自动保存：改完即生效，不需要点「保存设置」
+(function() {
+    var toast = document.getElementById('saveToast');
+    var toastTimer = null;
+
+    function showToast(text, ok) {
+        if (!toast) return;
+        toast.textContent = text || (ok ? '已保存' : '保存失败');
+        toast.classList.toggle('is-error', !ok);
+        toast.hidden = false;
+        toast.classList.add('is-show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function() {
+            toast.classList.remove('is-show');
+            setTimeout(function() { toast.hidden = true; }, 260);
+        }, 1500);
+    }
+
+    function save(form) {
+        var data = new FormData(form);
+        data.set('ajax', '1');
+
+        fetch(form.action, {
+            method: 'POST',
+            body: new URLSearchParams(data),
+            headers: { 'X-Requested-With': 'fetch' }
+        })
+        .then(function(r) {
+            // 会话过期时后端返回 401 JSON，而不是跳转登录页
+            if (r.status === 401) {
+                return r.json().then(function(res) {
+                    showToast(res.text || '登录已过期，请重新登录', false);
+                    setTimeout(function() { location.href = '/login'; }, 900);
+                    throw new Error('session-expired');
+                });
+            }
+            if (r.status === 403) {
+                // CSRF 令牌过期（页面放太久 / cookie 被清）：刷新一次页面即可恢复
+                return r.json().then(function(res) {
+                    var msg = res.detail || res.text || '校验失败，请刷新页面';
+                    showToast(msg, false);
+                    setTimeout(function() { location.reload(); }, 1200);
+                    throw new Error('session-expired');
+                }).catch(function() {
+                    showToast('校验失败，请刷新页面后重试', false);
+                    setTimeout(function() { location.reload(); }, 1200);
+                    throw new Error('session-expired');
+                });
+            }
+            if (!String(r.headers.get('content-type') || '').includes('json')) {
+                // 兜底：拿到 HTML 说明被重定向了（通常是登录态失效）
+                showToast('登录已过期，请重新登录', false);
+                setTimeout(function() { location.href = '/login'; }, 900);
+                throw new Error('not-json');
+            }
+            return r.json();
+        })
+        .then(function(res) {
+            showToast(res.ok ? '已保存' : (res.text || '保存失败'), res.ok);
+
+            // 备份卡片顺带更新「下次自动备份」提示
+            if (form.id === 'backupScheduleForm' && res.ok && res.next_backup) {
+                var hint = form.querySelector('.field-hint');
+                if (hint) hint.textContent = '下次自动备份：' + res.next_backup;
+            }
+        })
+        .catch(function(err) {
+            if (err && /session-expired|not-json/.test(err.message)) return;
+            showToast('保存失败，请检查后重试', false);
+        });
+    }
+
+    [].forEach.call(document.querySelectorAll('form[data-autosave="1"]'), function(form) {
+        var inputTimer = null;
+
+        form.addEventListener('change', function() { save(form); });
+
+        // 数字框：停止输入 0.6 秒后保存
+        [].forEach.call(form.querySelectorAll('input[type="number"]'), function(input) {
+            input.addEventListener('input', function() {
+                clearTimeout(inputTimer);
+                inputTimer = setTimeout(function() { save(form); }, 600);
+            });
+        });
+    });
+
+    // 自定义时间选择器点「确定」后，select/隐藏域不会触发 change，这里补一次
+    var tpOk = document.getElementById('tpOk');
+    var backupForm = document.getElementById('backupScheduleForm');
+    if (tpOk && backupForm) {
+        tpOk.addEventListener('click', function() { setTimeout(function() { save(backupForm); }, 60); });
+    }
+})();
+</script>
+
+<script>
+// 修改密码弹窗：与恢复出厂设置同样的交互
+(function() {
+    var openBtn = document.getElementById('openPassword');
+    var dialog = document.getElementById('passwordDialog');
+    if (!openBtn || !dialog) return;
+
+    var current = dialog.querySelector('input[name="current_password"]');
+    var pwd = dialog.querySelector('input[name="password"]');
+    var pwd2 = dialog.querySelector('input[name="password2"]');
+    var form = dialog.querySelector('form');
+
+    function clearError() {
+        var err = dialog.querySelector('.alert');
+        if (err) err.remove();
+        delete dialog.dataset.autoshow;
+    }
+
+    function open(keepError) {
+        if (!keepError) clearError();
+        if (typeof dialog.showModal === 'function') {
+            dialog.showModal();
+            if (current) { current.focus(); current.select(); }
+        }
+    }
+
+    openBtn.addEventListener('click', function() { open(false); });
+
+    document.getElementById('passwordCancel').addEventListener('click', function() {
+        dialog.close();
+    });
+
+    // 两次新密码不一致时当场拦下
+    form.addEventListener('submit', function(e) {
+        if (pwd.value !== pwd2.value) {
+            e.preventDefault();
+            pwd2.setCustomValidity('两次输入的新密码不一致');
+            pwd2.reportValidity();
+            setTimeout(function() { pwd2.setCustomValidity(''); }, 2500);
+        }
+    });
+
+    // 服务端打回（密码错误 / 成功）时自动重开弹窗
+    if (dialog.dataset.autoshow === '1') open(true);
+})();
+</script>
+
+<script>
+(function () {
+    var devices = {{ devices|tojson }};
+    var csrf = {{ csrf_token|tojson }};
+    var listEl = document.getElementById('devList');
+    var form = document.getElementById('devForm');
+    var statusEl = document.getElementById('devStatus');
+    var cancelBtn = document.getElementById('devCancel');
+    var dlg = document.getElementById('deviceDialog');
+    var dlgTitle = document.getElementById('deviceDialogTitle');
+    var addBtn = document.getElementById('devAddBtn');
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function render() {
+        if (!devices.length) {
+            listEl.innerHTML = '<div class="dev-empty">还没有添加设备。点下面的「添加设备」填一体机的 IP 和访问密钥。</div>';
+            return;
+        }
+        listEl.innerHTML = '';
+        devices.forEach(function (d) {
+            var row = document.createElement('div');
+            row.className = 'dev-row';
+            row.innerHTML =
+                '<div><div class="nm">' + esc(d.name || d.host) + '</div>' +
+                '<div class="ad">' + esc(d.room || '未设置教室') + ' · ' + esc(d.host) + ':' + d.port +
+                ' · UDP ' + (d.video_port || d.port) + '</div></div>' +
+                '<div class="spacer"></div>' +
+                '<span class="status-pill" data-role="pill">检测中…</span>' +
+                '<button type="button" class="btn btn-ghost btn-sm" data-edit>编辑</button>' +
+                '<button type="button" class="btn btn-danger btn-sm" data-del>删除</button>';
+
+            row.querySelector('[data-edit]').onclick = function () { fill(d); };
+            row.querySelector('[data-del]').onclick = function () {
+                if (!confirm('删除设备「' + (d.name || d.host) + '」？')) return;
+                post('/devices/delete', { device_id: d.id }).then(reload);
+            };
+
+            listEl.appendChild(row);
+
+            fetch('/device/' + d.id + '/status')
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (st) {
+                    var pill = row.querySelector('[data-role=pill]');
+                    if (!pill) return;
+                    var online = st && (st.reachable || (st.video && st.video.online));
+                    pill.className = 'status-pill ' + (online ? 'status-pill--ok' : 'status-pill--bad');
+                    pill.textContent = online ? '在线' : (st && st.error ? '连接失败' : '离线');
+                })
+                .catch(function () {});
+        });
+    }
+
+    function fill(d) {
+        form.device_id.value = d.id;
+        form.name.value = d.name || '';
+        form.room.value = d.room || '';
+        form.host.value = d.host || '';
+        form.port.value = d.port || 3457;
+        form.video_port.value = d.video_port && d.video_port !== d.port ? d.video_port : '';
+        form.key.value = d.key || '';
+        dlgTitle.textContent = '编辑设备';
+        statusEl.className = 'dev-status';
+        statusEl.textContent = '正在编辑「' + (d.name || d.host) + '」';
+        dlg.showModal();
+    }
+
+    function reset() {
+        form.reset();
+        form.device_id.value = '';
+        form.port.value = '{{ device_default_port }}';
+        dlgTitle.textContent = '添加设备';
+        statusEl.className = 'dev-status';
+        statusEl.textContent = '';
+        var codeEl = document.getElementById('devCode');
+        if (codeEl) codeEl.value = '';
+    }
+
+    addBtn.onclick = function () {
+        reset();
+        dlg.showModal();
+        setTimeout(function () { form.host.focus(); }, 60);
+    };
+
+    cancelBtn.onclick = function () {
+        dlg.close();
+        reset();
+    };
+
+    // 一键配置码 → 交给服务端解析（前端只负责把原文发过去）
+    function applyConfigCode() {
+        var raw = document.getElementById('devCode').value;
+        if (!raw || !raw.trim()) {
+            statusEl.className = 'dev-status bad';
+            statusEl.textContent = '请先粘贴配置码';
+            return;
+        }
+
+        statusEl.className = 'dev-status';
+        statusEl.textContent = '正在解析…';
+
+        post('/devices/parse-code', { code: raw }).then(function (res) {
+            if (!res || !res.ok) {
+                statusEl.className = 'dev-status bad';
+                statusEl.textContent = (res && res.error) || '配置码无法识别';
+                return;
+            }
+
+            var d = res.device || {};
+            form.name.value = d.name || '';
+            form.room.value = d.room || '';
+            form.host.value = d.host || '';
+            form.port.value = d.port || 3457;
+            form.video_port.value = (d.video_port && d.video_port !== d.port) ? d.video_port : '';
+            form.key.value = d.key || '';
+
+            statusEl.className = 'dev-status ok';
+            statusEl.textContent = '配置码已解析，确认无误后点「保存」';
+        }).catch(function (err) {
+            statusEl.className = 'dev-status bad';
+            statusEl.textContent = '解析请求失败：' + err;
+        });
+    }
+
+    var codeInput = document.getElementById('devCode');
+    document.getElementById('devCodeApply').onclick = applyConfigCode;
+
+    // 粘贴后自动解析，省一次点击
+    codeInput.addEventListener('paste', function () {
+        setTimeout(applyConfigCode, 30);
+    });
+
+    // 回车不要提交表单，先尝试解析
+    codeInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            applyConfigCode();
+        }
+    });
+
+    dlg.addEventListener('click', function (e) {
+        if (e.target === dlg) { dlg.close(); reset(); }
+    });
+
+    function post(url, data) {
+        var body = new URLSearchParams();
+        body.set('csrf_token', csrf);
+        Object.keys(data).forEach(function (k) { body.set(k, data[k] == null ? '' : data[k]); });
+        return fetch(url, { method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' } })
+            .then(function (r) { return r.json(); });
+    }
+
+    function reload() { location.reload(); }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var data = {
+            name: form.name.value.trim(),
+            room: form.room.value.trim(),
+            host: form.host.value.trim(),
+            port: form.port.value.trim() || '3457',
+            video_port: form.video_port.value.trim() || '0',
+            key: form.key.value.trim()
+        };
+        if (!data.host) { statusEl.className = 'dev-status bad'; statusEl.textContent = '请填写 IP 地址'; return; }
+        var editing = form.device_id.value;
+        if (editing) data.device_id = editing;
+
+        post(editing ? '/devices/update' : '/devices/add', data).then(function (res) {
+            if (res && res.ok) {
+                statusEl.className = 'dev-status ok';
+                statusEl.textContent = '已保存';
+                setTimeout(function () { dlg.close(); reload(); }, 350);
+            } else {
+                statusEl.className = 'dev-status bad';
+                statusEl.textContent = (res && res.error) || '保存失败';
+            }
+        }).catch(function (err) {
+            statusEl.className = 'dev-status bad';
+            statusEl.textContent = '请求失败：' + err;
+        });
+    });
+
+    document.getElementById('devProbe').onclick = function () {
+        var host = form.host.value.trim();
+        if (!host) { statusEl.className = 'dev-status bad'; statusEl.textContent = '请先填 IP 地址'; return; }
+        statusEl.className = 'dev-status';
+        statusEl.textContent = '正在连接 ' + host + ' …';
+        post('/devices/probe', {
+            host: host,
+            port: form.port.value.trim() || '3457',
+            key: form.key.value.trim()
+        }).then(function (res) {
+            if (!res || !res.ok) {
+                statusEl.className = 'dev-status bad';
+                statusEl.textContent = '连接失败：' + ((res && res.error) || '未知错误');
+                return;
+            }
+            var info = res.info || {};
+            var lines = [
+                '连接成功：' + (info.name || '一体机端') + ' v' + (info.version || '?'),
+                '设备：' + (info.device || '—') + '　教室：' + (info.room || '未设置'),
+                '端口：TCP ' + info.port + '　UDP ' + (info.videoPort || info.port)
+            ];
+            if (res.auth) {
+                lines.push('密钥校验通过 ✓');
+                statusEl.className = 'dev-status ok';
+            } else {
+                lines.push('密钥未通过，请到一体机主界面复制访问密钥');
+                statusEl.className = 'dev-status bad';
+            }
+            statusEl.textContent = lines.join(String.fromCharCode(10));
+        });
+    };
+
+    render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>卸载 班级管理系统</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="uninstall.css">
+</head>
+<body class="un-body">
+<div class="un-wrap">
+
+    <!-- 确认 -->
+    <section class="un-step is-active" data-step="confirm">
+        <div class="un-head">
+            <img class="un-logo" src="logo.ico" alt="">
+            <h1>卸载班级管理系统</h1>
+            <p class="un-sub">这会把程序从这台电脑上彻底移除</p>
+        </div>
+
+        <div class="un-card">
+            <div class="un-row">
+                <span class="un-label">安装位置</span>
+                <span class="un-value" id="infoDir">—</span>
+            </div>
+            <div class="un-row">
+                <span class="un-label">占用空间</span>
+                <span class="un-value" id="infoSize">—</span>
+            </div>
+        </div>
+
+        <div class="un-warn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 9v4M12 17h.01"></path>
+                <path d="M10.3 3.9 2.4 17a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+            </svg>
+            <div>
+                <b>整个安装目录都会被删除</b>
+                <span>包括数据库里的成绩数据、备份、导出记录和桌面快捷方式，删除后无法恢复。建议先备份 data 目录。</span>
+            </div>
+        </div>
+
+        <label class="un-keep">
+            <input type="checkbox" id="optKeepData">
+            <span class="un-keep__body">
+                <b>保留成绩数据</b>
+                <span>只删除程序文件，保留 class-manager-system\data（数据库、备份、导出记录）</span>
+            </span>
+        </label>
+
+        <footer class="un-foot">
+            <button type="button" class="btn btn-ghost" id="btnCancel">取消</button>
+            <button type="button" class="btn btn-danger" id="btnUninstall">卸载</button>
+        </footer>
+    </section>
+
+    <!-- 进度 -->
+    <section class="un-step" data-step="progress">
+        <div class="un-head">
+            <h1>正在卸载</h1>
+            <p class="un-sub" id="progressPath">—</p>
+        </div>
+
+        <div class="un-progress">
+            <div class="un-progress__bar"><span id="progressFill"></span></div>
+            <div class="un-progress__meta">
+                <span id="progressText">准备中…</span>
+                <span id="progressPercent">0%</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- 完成 -->
+    <section class="un-step" data-step="done">
+        <div class="un-done">
+            <div class="un-done__icon">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 6 9 17l-5-5"></path>
+                </svg>
+            </div>
+            <h1>卸载完成</h1>
+            <p class="un-sub" id="doneSub">班级管理系统已从这台电脑移除</p>
+            <p class="un-sub un-keepnote" id="doneKeep" hidden></p>
+            <button type="button" class="btn btn-lg" id="btnClose">关闭</button>
+        </div>
+    </section>
+
+    <!-- 出错 -->
+    <section class="un-step" data-step="error">
+        <div class="un-done">
+            <div class="un-done__icon un-done__icon--error">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 9v4M12 17h.01"></path>
+                    <path d="M10.3 3.9 2.4 17a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+                </svg>
+            </div>
+            <h1>卸载失败</h1>
+            <p class="un-sub" id="errorText">—</p>
+            <button type="button" class="btn btn-lg btn-ghost" id="btnCloseError">关闭</button>
+        </div>
+    </section>
+
+</div>
+<script src="uninstall.js"></script>
+</body>
+</html>

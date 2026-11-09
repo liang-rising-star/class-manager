@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>正在启动</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+</head>
+<body class="boot-body">
+    <div class="boot" id="boot">
+        <div class="boot__glow"></div>
+
+        <div class="boot__stage">
+            <div class="boot__logo-wrap">
+                <span class="boot__ring boot__ring--1"></span>
+                <span class="boot__ring boot__ring--2"></span>
+                <span class="boot__logo-mask">
+                    <img class="boot__logo" src="/logo.ico" alt="">
+                    <span class="boot__shine"></span>
+                </span>
+            </div>
+
+            <h1 class="boot__title">
+                <span style="--i:0">班</span><span style="--i:1">级</span><span style="--i:2">管</span><span style="--i:3">理</span><span style="--i:4">系</span><span style="--i:5">统</span>
+            </h1>
+
+            <p class="boot__sub" id="bootSub">准备就绪，马上开始</p>
+
+            <div class="boot__bar"><span class="boot__fill"></span></div>
+
+            <p class="boot__who">欢迎回来，{{ username }}</p>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var next = {{ next_url|tojson }};
+        var boot = document.getElementById('boot');
+        var sub = document.getElementById('bootSub');
+
+        var messages = ['数据库已就绪', '正在载入班级数据', '准备就绪，马上开始'];
+
+        // 文字分阶段切换，配合进度条
+        setTimeout(function() { sub.textContent = messages[1]; }, 700);
+        setTimeout(function() { sub.textContent = messages[2]; }, 1500);
+
+        // 动画结束后淡出，进入控制台
+        setTimeout(function() {
+            boot.classList.add('is-leaving');
+            setTimeout(function() { location.replace(next); }, 420);
+        }, 2100);
+
+        // 用户点击任意处可跳过
+        boot.addEventListener('click', function() {
+            boot.classList.add('is-leaving');
+            setTimeout(function() { location.replace(next); }, 200);
+        });
+    })();
+    </script>
+</body>
+</html>

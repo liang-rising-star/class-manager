@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>登录</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+</head>
+<body>
+    <div class="auth-page">
+        <div class="auth-card">
+            <div class="auth-head">
+                <img class="auth-logo" src="/logo.ico" alt="">
+                <h1 class="auth-title">登录</h1>
+                <p class="auth-sub">{{ system_name }}</p>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-error">{{ message or '用户名或密码错误' }}</div>
+            {% endif %}
+
+            <form action="/login" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="field">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="username" required
+                           autocomplete="username" autofocus>
+                </div>
+                <div class="field">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" required
+                           autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-block">登录</button>
+            </form>
+
+            <div class="auth-foot">连续 5 次密码错误将锁定 5 分钟</div>
+        </div>
+    </div>
+</body>
+</html>

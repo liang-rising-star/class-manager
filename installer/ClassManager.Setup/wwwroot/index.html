@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>班级管理系统 安装程序</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="wizard.css">
+</head>
+<body class="wizard-body">
+<div class="wizard" id="wizard">
+
+    <!-- 步骤 0：已安装 → 维护模式 -->
+    <section class="step" data-step="maintain">
+        <header class="step-head">
+            <h2>已安装班级管理系统</h2>
+            <p id="maintInfo">—</p>
+        </header>
+
+        <div class="options-list">
+            <button type="button" class="switch opt opt--action" id="actUpdate">
+                <span class="opt__icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path>
+                    </svg>
+                </span>
+                <span class="switch__text">
+                    更新到新版本
+                    <span class="switch__hint">选择一个 zip 更新包导入，只覆盖程序文件，成绩数据不动</span>
+                </span>
+            </button>
+
+            <button type="button" class="switch opt opt--action" id="actRepair">
+                <span class="opt__icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14.7 6.3a4 4 0 0 0 5 5l-9.4 9.4a2.8 2.8 0 0 1-4-4Z"></path>
+                    </svg>
+                </span>
+                <span class="switch__text">
+                    修复 / 重新安装
+                    <span class="switch__hint">用安装包自带的文件覆盖一遍，解决文件损坏或缺失</span>
+                </span>
+            </button>
+
+        </div>
+
+        <footer class="step-foot">
+            <button type="button" class="btn btn-ghost" id="actFresh">改为全新安装…</button>
+        </footer>
+    </section>
+
+    <!-- 步骤 1：欢迎 -->
+    <section class="step is-active" data-step="welcome">
+        <div class="welcome">
+            <div class="welcome__logo-wrap">
+                <span class="welcome__ring welcome__ring--1"></span>
+                <span class="welcome__ring welcome__ring--2"></span>
+                <img class="welcome__logo" src="logo.ico" alt="">
+            </div>
+            <h1 class="welcome__title">
+                <span style="--i:0">班</span><span style="--i:1">级</span><span style="--i:2">积</span><span
+                    style="--i:3">分</span><span style="--i:4">管</span><span style="--i:5">理</span><span
+                    style="--i:6">系</span><span style="--i:7">统</span>
+            </h1>
+            <p class="welcome__sub">版本 <b id="appVersion">3.0</b> · 打印积分卡、扫码核销、成绩统计</p>
+            <p class="welcome__desc">安装向导会带你完成三步：选择安装位置、设置选项、解压文件。</p>
+
+            <button type="button" class="btn btn-lg welcome__start" id="startBtn">
+                开始安装
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M5 12h14"></path><path d="m13 6 6 6-6 6"></path>
+                </svg>
+            </button>
+        </div>
+    </section>
+
+    <!-- 步骤 2：安装位置 -->
+    <section class="step" data-step="path">
+        <div class="step-body">
+        <div class="path-wrap">
+            <header class="step-head">
+                <h2>选择安装位置</h2>
+                <p>程序、数据和以后自动更新的文件都会放在这个目录里</p>
+            </header>
+
+            <div class="path-panel">
+                <label class="path-panel__label" for="pathInput">安装目录</label>
+                <div class="path-row">
+                    <input type="text" id="pathInput" spellcheck="false">
+                    <button type="button" class="btn btn-ghost" id="browseBtn">浏览…</button>
+                </div>
+                <div class="path-hint" id="pathHint"></div>
+            </div>
+
+            <p class="path-tip">
+                建议装在 <b>D:\class-manager</b> 这类普通目录：程序要在这里保存数据、以后也要自动更新。
+            </p>
+        </div>
+        </div>
+
+        <footer class="step-foot">
+            <button type="button" class="btn btn-ghost" data-back="welcome">上一步</button>
+            <button type="button" class="btn" id="pathNext">下一步</button>
+        </footer>
+    </section>
+
+    <!-- 步骤 3：选项 -->
+    <section class="step" data-step="options">
+        <header class="step-head">
+            <h2>安装选项</h2>
+            <p>这些都可以在装好之后到「设置」里再改</p>
+        </header>
+
+        <div class="step-body">
+        <div class="options-list">
+            <label class="switch opt">
+                <span class="opt__icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 3v9"></path>
+                        <path d="M6.4 6.4a8 8 0 1 0 11.2 0"></path>
+                    </svg>
+                </span>
+                <span class="switch__text">
+                    开机自动启动
+                    <span class="switch__hint">开机后只在托盘运行，双击图标再打开主界面</span>
+                </span>
+                <input type="checkbox" id="optAutostart">
+                <span class="switch__track" aria-hidden="true"></span>
+            </label>
+
+            <label class="switch opt">
+                <span class="opt__icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="2.5" y="4" width="19" height="13" rx="2.5"></rect>
+                        <path d="M8 21h8M12 17v4"></path>
+                    </svg>
+                </span>
+                <span class="switch__text">
+                    创建桌面快捷方式
+                    <span class="switch__hint">在桌面上放一个「班级管理系统」图标</span>
+                </span>
+                <input type="checkbox" id="optDesktop" checked>
+                <span class="switch__track" aria-hidden="true"></span>
+            </label>
+
+            <label class="switch opt">
+                <span class="opt__icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="3" y="3" width="7" height="7" rx="1.8"></rect>
+                        <rect x="14" y="3" width="7" height="7" rx="1.8"></rect>
+                        <rect x="3" y="14" width="7" height="7" rx="1.8"></rect>
+                        <rect x="14" y="14" width="7" height="7" rx="1.8"></rect>
+                    </svg>
+                </span>
+                <span class="switch__text">
+                    添加到开始菜单
+                    <span class="switch__hint">在开始菜单里建一个文件夹和快捷方式</span>
+                </span>
+                <input type="checkbox" id="optStartMenu" checked>
+                <span class="switch__track" aria-hidden="true"></span>
+            </label>
+        </div>
+        </div>
+
+        <footer class="step-foot">
+            <button type="button" class="btn btn-ghost" data-back="path">上一步</button>
+            <button type="button" class="btn" id="installBtn">开始安装</button>
+        </footer>
+    </section>
+
+    <!-- 步骤 4：进度 -->
+    <section class="step" data-step="progress">
+        <header class="step-head">
+            <h2>正在安装</h2>
+            <p id="progressPath">—</p>
+        </header>
+
+        <div class="progress">
+            <div class="progress__bar"><span class="progress__fill" id="progressFill"></span></div>
+            <div class="progress__meta">
+                <span id="progressText">准备中…</span>
+                <span id="progressPercent">0%</span>
+            </div>
+        </div>
+
+        <p class="progress-tip">安装过程中请不要关闭窗口</p>
+    </section>
+
+    <!-- 步骤 5：完成 -->
+    <section class="step" data-step="done">
+        <div class="done">
+            <div class="done__icon">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 6 9 17l-5-5"></path>
+                </svg>
+            </div>
+            <h2 class="done__title" id="doneTitle">安装完成</h2>
+            <p class="done__sub" id="donePath">—</p>
+
+            <label class="switch done__switch">
+                <span class="switch__text">
+                    立即运行班级管理系统
+                    <span class="switch__hint">第一次启动会引导你设置管理员密码</span>
+                </span>
+                <input type="checkbox" id="optLaunch" checked>
+                <span class="switch__track" aria-hidden="true"></span>
+            </label>
+
+            <button type="button" class="btn btn-lg" id="finishBtn">完成并关闭安装程序</button>
+        </div>
+    </section>
+
+    <!-- 出错 -->
+    <section class="step" data-step="error">
+        <div class="done">
+            <div class="done__icon done__icon--error">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 9v4M12 17h.01"></path>
+                    <path d="M10.3 3.9 2.4 17a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+                </svg>
+            </div>
+            <h2 class="done__title">安装失败</h2>
+            <p class="done__sub" id="errorText">—</p>
+            <button type="button" class="btn btn-lg btn-ghost" id="closeBtn">关闭安装程序</button>
+        </div>
+    </section>
+
+
+<dialog id="confirmDialog" class="modal">
+    <div class="modal__body">
+        <h3 class="modal__title" id="confirmTitle">确认</h3>
+        <p class="modal__text" id="confirmText">—</p>
+        <div class="modal__actions">
+            <button type="button" class="btn btn-ghost" id="confirmNo">取消</button>
+            <button type="button" class="btn" id="confirmYes">确定</button>
+        </div>
+    </div>
+</dialog>
+</div>
+
+<script src="wizard.js"></script>
+</body>
+</html>

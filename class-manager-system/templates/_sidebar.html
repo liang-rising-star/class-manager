@@ -1,0 +1,538 @@
+<aside class="sidebar" id="appSidebar">
+    <a draggable="false" class="brand" href="/index" title="控制台">
+        <img class="brand-logo" src="/logo.ico" alt="">
+        <span class="brand-text">
+            <span class="brand-name">{{ system_name }}</span>
+            <span class="brand-sub">Class Manager</span>
+        </span>
+    </a>
+
+    <nav class="side-nav" id="sidebarNav">
+        <span class="side-nav__label">主菜单</span>
+
+        <a draggable="false" class="side-link {{ 'is-active' if active_page == 'index' }}" href="/index" title="控制台">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="1.6"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1.6"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1.6"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1.6"></rect>
+            </svg>
+            <span class="side-link__text">控制台</span>
+        </a>
+
+        <span class="side-nav__label">班级设备</span>
+
+        <a draggable="false" class="side-link {{ 'is-active' if active_page == 'monitor' }}" href="/monitor" title="班级监控">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2.5 7.5A2 2 0 0 1 4.5 6h9a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2z"></path>
+                <path d="m15.5 10.5 5-3v9l-5-3z"></path>
+            </svg>
+            <span class="side-link__text">班级监控</span>
+        </a>
+
+        <a draggable="false" class="side-link {{ 'is-active' if active_page == 'call' }}" href="/call" title="班级叫号">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 10v4a1 1 0 0 0 1 1h2.5l5.5 4V5L6.5 9H4a1 1 0 0 0-1 1z"></path>
+                <path d="M16.5 8.5a5 5 0 0 1 0 7"></path>
+            </svg>
+            <span class="side-link__text">班级叫号</span>
+        </a>
+
+        <a draggable="false" class="side-link {{ 'is-active' if active_page == 'kiosk' }}" href="/kiosk" title="一体机控制">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2.5" y="4" width="19" height="12" rx="2.2"></rect>
+                <path d="M8 20h8M12 16v4"></path>
+            </svg>
+            <span class="side-link__text">一体机控制</span>
+        </a>
+
+        <span class="side-nav__label">积分管理</span>
+
+        <a draggable="false" class="side-link {{ 'is-active' if active_page == 'generate' }}" href="/generate" title="生成积分">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="3"></rect>
+                <path d="M12 9v6M9 12h6"></path>
+            </svg>
+            <span class="side-link__text">生成积分</span>
+        </a>
+
+        <a draggable="false" class="side-link {{ 'is-active' if active_page == 'verify' }}" href="/verify" title="核销积分">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 7V5a1 1 0 0 1 1-1h2M20 7V5a1 1 0 0 0-1-1h-2M4 17v2a1 1 0 0 0 1 1h2M20 17v2a1 1 0 0 1-1 1h-2"></path>
+                <path d="M8 12h8"></path>
+            </svg>
+            <span class="side-link__text">核销积分</span>
+        </a>
+    </nav>
+
+    <div class="sidebar-foot">
+        <button type="button" class="side-link" id="checkUpdateBtn" title="检查更新">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
+                <path d="M21 3v6h-6"></path>
+            </svg>
+            <span class="side-link__text" id="checkUpdateText">检查更新</span>
+            <span class="side-link__badge" id="updateBadge" hidden>新</span>
+        </button>
+
+        <a draggable="false" class="side-link {{ 'is-active' if active_page == 'setting' }}" href="/setting" title="设置">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3.2"></circle>
+                <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.11A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.7 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.11A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.7a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.11A1.7 1.7 0 0 0 15 4.7a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.3 9v.03a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.11a1.7 1.7 0 0 0-1.49.94Z"></path>
+            </svg>
+            <span class="side-link__text">设置</span>
+        </a>
+
+        <a draggable="false" class="side-link is-danger" href="/logout" title="退出登录" id="logoutLink">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <path d="m16 17 5-5-5-5M21 12H9"></path>
+            </svg>
+            <span class="side-link__text">退出登录</span>
+        </a>
+
+        <button type="button" id="sidebarToggle" class="sidebar-toggle"
+                aria-expanded="true" aria-controls="sidebarNav" title="收起菜单">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="3"></rect>
+                <path d="M9 4v16"></path>
+                <path d="m14 9-3 3 3 3"></path>
+            </svg>
+            <span class="sidebar-toggle__text">收起菜单</span>
+        </button>
+    </div>
+</aside>
+
+<!-- 退出登录确认弹窗 -->
+<dialog id="logoutDialog" class="modal" aria-labelledby="logoutTitle">
+    <form method="dialog" class="modal__body">
+        <div class="modal__icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <path d="m16 17 5-5-5-5M21 12H9"></path>
+            </svg>
+        </div>
+        <h3 class="modal__title" id="logoutTitle">退出登录？</h3>
+        <p class="modal__text">退出后需要重新输入账号密码才能继续使用。</p>
+        <div class="modal__actions">
+            <button type="submit" value="cancel" class="btn btn-ghost">取消</button>
+            <button type="submit" value="confirm" class="btn btn-danger">退出登录</button>
+        </div>
+    </form>
+</dialog>
+
+<script>
+// Esc / 点遮罩都不关闭弹窗：必须点对应的按钮
+document.addEventListener('cancel', function (e) {
+    if (e.target && e.target.tagName === 'DIALOG') e.preventDefault();
+}, true);
+
+(function() {
+    var KEY = 'class-manager:sidebar-collapsed';
+    var shell = document.querySelector('.app-shell');
+    var btn = document.getElementById('sidebarToggle');
+    if (!shell || !btn) return;
+
+    function apply(collapsed) {
+        shell.classList.toggle('is-collapsed', collapsed);
+        btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        btn.title = collapsed ? '展开菜单' : '收起菜单';
+        btn.querySelector('.sidebar-toggle__text').textContent = collapsed ? '展开菜单' : '收起菜单';
+    }
+
+    var collapsed = false;
+    try { collapsed = localStorage.getItem(KEY) === '1'; } catch (e) {}
+    apply(collapsed);
+
+    btn.addEventListener('click', function() {
+        var next = !shell.classList.contains('is-collapsed');
+        apply(next);
+        try { localStorage.setItem(KEY, next ? '1' : '0'); } catch (e) {}
+    });
+})();
+
+// 退出登录：页内弹窗确认
+(function() {
+    var link = document.getElementById('logoutLink');
+    var dialog = document.getElementById('logoutDialog');
+    if (!link || !dialog) return;
+
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (typeof dialog.showModal === 'function') {
+            dialog.showModal();
+        } else if (confirm('确定要退出登录吗？')) {
+            location.href = link.getAttribute('href');
+        }
+    });
+
+    // <form method="dialog"> 点按钮即关闭，returnValue 记录点的是哪个
+    dialog.addEventListener('close', function() {
+        if (dialog.returnValue === 'confirm') {
+            location.href = link.getAttribute('href');
+        }
+    });
+})();
+</script>
+
+<!-- 侧边栏通用的 CSRF 令牌（控制台等页面没有表单，弹窗里要用） -->
+<input type="hidden" id="sidebarCsrf" name="csrf_token" value="{{ csrf_token }}">
+
+<!-- 检查更新弹窗 -->
+<dialog id="updateDialog" class="modal modal--update" aria-labelledby="updateTitle">
+    <div class="modal__body">
+        <div class="modal__icon modal__icon--info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
+                <path d="M21 3v6h-6"></path>
+            </svg>
+        </div>
+        <h3 class="modal__title" id="updateTitle">检查更新</h3>
+
+        <div class="update-versions">
+            <div class="update-version">
+                <span class="update-version__label">当前版本</span>
+                <span class="update-version__value" id="updateCurrent">-</span>
+            </div>
+            <div class="update-version__arrow">→</div>
+            <div class="update-version is-latest">
+                <span class="update-version__label">最新版本</span>
+                <span class="update-version__value" id="updateLatest">检查中…</span>
+            </div>
+        </div>
+
+        <p class="update-status" id="updateText">正在连接 GitHub 检查最新版本…</p>
+
+        <label class="switch update-switch">
+            <span class="switch__text">
+                加入体验测试版
+                <span class="switch__hint">开启后从预发布（pre-release）渠道获取，更早体验新功能，可能不够稳定</span>
+            </span>
+            <input type="checkbox" id="updateBeta">
+            <span class="switch__track" aria-hidden="true"></span>
+        </label>
+
+        <div class="update-meta" id="updateMeta" hidden></div>
+
+        <div class="update-download" id="updateDownload" hidden>
+            <div class="update-download__bar"><span id="updateDownloadFill"></span></div>
+            <div class="update-download__meta">
+                <span id="updateDownloadText">正在准备下载…</span>
+                <span id="updateDownloadPercent">0%</span>
+            </div>
+        </div>
+
+        <div class="update-notes-wrap" id="updateNotesWrap" hidden>
+            <div class="update-notes__title">更新内容</div>
+            <pre class="update-notes" id="updateNotes"></pre>
+        </div>
+
+        <div class="modal__actions update-actions">
+            <a class="btn btn-ghost" id="updateOpen" href="https://github.com/liang-rising-star/class-manager/releases"
+               target="_blank" rel="noopener noreferrer" hidden>打开发布页</a>
+            <button type="button" class="btn btn-ghost" id="updateLocal" hidden>选择更新包…</button>
+            <span class="update-actions__gap"></span>
+            <button type="button" class="btn btn-ghost" id="updateClose">关闭</button>
+            <button type="button" class="btn btn-ghost" id="updateRecheck">重新检查</button>
+            <button type="button" class="btn" id="updateApply" hidden>立即更新</button>
+        </div>
+    </div>
+</dialog>
+
+<script>
+// 检查更新：双通道（正式 / 体验版）+ 徽标提示
+(function() {
+    var btn = document.getElementById('checkUpdateBtn');
+    var dialog = document.getElementById('updateDialog');
+    if (!btn || !dialog) return;
+
+    var elCurrent = document.getElementById('updateCurrent');
+    var elLatest = document.getElementById('updateLatest');
+    var elText = document.getElementById('updateText');
+    var elMeta = document.getElementById('updateMeta');
+    var elNotes = document.getElementById('updateNotes');
+    var elOpen = document.getElementById('updateOpen');
+    var elClose = document.getElementById('updateClose');
+    var elRecheck = document.getElementById('updateRecheck');
+    var elBeta = document.getElementById('updateBeta');
+    var badge = document.getElementById('updateBadge');
+    var applyBtn = document.getElementById('updateApply');
+    var localBtn = document.getElementById('updateLocal');
+    var menuText = document.getElementById('checkUpdateText');
+    var notesWrap = document.getElementById('updateNotesWrap');
+    var dlBox = document.getElementById('updateDownload');
+    var dlFill = document.getElementById('updateDownloadFill');
+    var dlText = document.getElementById('updateDownloadText');
+    var dlPercent = document.getElementById('updateDownloadPercent');
+
+    // 下载/安装期间禁用其它按钮，避免中途关窗导致状态错乱
+    function setBusy(busy) {
+        [applyBtn, localBtn, elClose, elRecheck].forEach(function (b) {
+            if (b) b.disabled = !!busy;
+        });
+        if (elOpen) {
+            elOpen.classList.toggle('is-disabled', !!busy);
+            elOpen.style.pointerEvents = busy ? 'none' : '';
+        }
+        if (applyBtn) applyBtn.disabled = !!busy;
+    }
+
+    function hasDesktopBridge() {
+        return !!(window.chrome && window.chrome.webview &&
+                  window.chrome.webview.hostObjects && window.chrome.webview.hostObjects.desktopBridge);
+    }
+    // 页面里随便找一个表单的 csrf_token 即可（都是同一个会话令牌）
+    var csrfInput = document.querySelector('input[name="csrf_token"]');
+    var csrf = csrfInput ? csrfInput.value : '';
+
+    function render(data) {
+        if (data.beta !== undefined && elBeta) elBeta.checked = !!data.beta;
+        elCurrent.textContent = 'v' + (data.current || '-');
+        elLatest.textContent = data.latest ? 'v' + data.latest + (data.prerelease ? ' 体验版' : '') : '—';
+
+        if (data.error) {
+            elText.textContent = data.error + '，请检查网络后重试。';
+            if (applyBtn) {
+                applyBtn.hidden = true;
+                applyBtn.classList.remove('btn--new');
+            }
+            elMeta.hidden = true;
+            if (notesWrap) notesWrap.hidden = true;
+            elOpen.hidden = true;
+            return;
+        }
+
+        if (data.has_update) {
+            elText.textContent = '发现新版本，建议更新';
+            elMeta.hidden = false;
+            elMeta.textContent = (data.name ? data.name + ' · ' : '') +
+                                 (data.published ? '发布于 ' + data.published : '');
+            if (data.notes) {
+                if (notesWrap) notesWrap.hidden = false;
+                elNotes.textContent = data.notes;
+            } else {
+                if (notesWrap) notesWrap.hidden = true;
+            }
+            elOpen.hidden = false;
+            elOpen.href = data.url;
+            if (badge) badge.hidden = false;
+            if (menuText) menuText.textContent = '有新版本';
+            if (btn) btn.classList.add('is-new');
+            if (applyBtn && hasDesktopBridge()) {
+                applyBtn.hidden = false;
+                applyBtn.classList.add('btn--new');
+            }
+        } else {
+            elText.textContent = '已是最新版本，无需更新';
+            elMeta.hidden = true;
+            if (notesWrap) notesWrap.hidden = true;
+            elOpen.hidden = true;
+            if (applyBtn) {
+                applyBtn.hidden = true;
+                applyBtn.classList.remove('btn--new');
+            }
+            if (menuText) menuText.textContent = '检查更新';
+            if (btn) btn.classList.remove('is-new');
+            if (badge) badge.hidden = true;
+        }
+    }
+
+    function check(force) {
+        elText.textContent = '正在连接 GitHub 检查最新版本…';
+        if (dlBox) dlBox.hidden = true;
+        elMeta.hidden = true;
+        if (notesWrap) notesWrap.hidden = true;
+        elOpen.hidden = true;
+
+        var url = force ? '/update/check' : '/update/status';
+        fetch(url, { headers: { 'X-Requested-With': 'fetch' } })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.beta !== undefined) elBeta.checked = !!data.beta;
+                render(data);
+                // 缓存里没查过（checked_at 空）就补一次真实检查
+                if (!force && !data.checked_at) {
+                    fetch('/update/check', { headers: { 'X-Requested-With': 'fetch' } })
+                        .then(function(r) { return r.json(); })
+                        .then(render)
+                        .catch(function() {});
+                }
+            })
+            .catch(function() { elText.textContent = '检查失败，请稍后重试。'; });
+    }
+
+    btn.addEventListener('click', function() {
+        if (typeof dialog.showModal === 'function') dialog.showModal();
+        if (localBtn) localBtn.hidden = !hasDesktopBridge();
+        setBusy(false);
+        resumeIfDownloading();
+        check(true);          // 每次打开都联网核对，避免缓存里是旧结果
+    });
+
+    // 上次没下完就关了弹窗 / 关了窗口：重新打开时接着显示进度
+    function resumeIfDownloading() {
+        fetch('/update/progress', { headers: { 'X-Requested-With': 'fetch' } })
+            .then(function (r) { return r.json(); })
+            .then(function (job) {
+                if (!job) return;
+                if (job.state === 'downloading' || job.state === 'ready') {
+                    startPolling(job);
+                }
+            })
+            .catch(function () { });
+    }
+
+    elRecheck.addEventListener('click', function() { check(true); });
+
+    if (localBtn) {
+        localBtn.addEventListener('click', function () {
+            var bridge = window.chrome.webview.hostObjects.desktopBridge;
+            bridge.PickUpdateZip().then(function (zipPath) {
+                if (!zipPath) return;
+                localBtn.disabled = true;
+                elText.textContent = '正在导入更新包…';
+                elMeta.hidden = true;
+                if (notesWrap) notesWrap.hidden = true;
+                bridge.ImportUpdate(zipPath).then(function (r) {
+                    if (r && r !== 'ok') {
+                        elText.textContent = '导入失败：' + r;
+                        localBtn.disabled = false;
+                        return;
+                    }
+                    elText.textContent = '更新包已导入，正在重新启动程序…';
+                });
+            });
+        });
+    }
+
+    if (applyBtn) {
+        applyBtn.addEventListener('click', function () {
+            setBusy(true);
+            applyBtn.classList.remove('btn--new');
+            elText.textContent = '正在下载更新包…';
+            elMeta.hidden = true;
+            if (notesWrap) notesWrap.hidden = true;
+
+            if (dlBox) {
+                dlBox.hidden = false;
+                dlFill.style.width = '0%';
+                dlText.textContent = '正在连接更新服务器…';
+                dlPercent.textContent = '0%';
+            }
+
+            var form = new URLSearchParams();
+            form.set('csrf_token', csrf);
+
+            fetch('/update/download', { method: 'POST', body: form })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (!res || res.ok === false) {
+                        elText.textContent = '下载失败：' + ((res && res.error) || '未知原因');
+                        setBusy(false);
+                        return;
+                    }
+                    startPolling(res);
+                })
+                .catch(function () {
+                    elText.textContent = '下载失败，请稍后重试。';
+                    setBusy(false);
+                });
+        });
+
+        function startPolling(job) {
+            if (dlBox) {
+                dlBox.hidden = false;
+                dlFill.style.width = (job.percent || 0) + '%';
+                dlPercent.textContent = (job.percent || 0) + '%';
+                dlText.textContent = job.state === 'ready' ? '安装完毕，正在重启程序…'
+                                                          : '正在下载更新包…';
+            }
+            setBusy(true);
+            pollProgress();
+        }
+
+        function pollProgress() {
+            fetch('/update/progress', { headers: { 'X-Requested-With': 'fetch' } })
+                .then(function (r) { return r.json(); })
+                .then(function (job) {
+                    if (!job) return;
+
+                    if (job.state === 'downloading') {
+                        var pct = job.percent || 0;
+                        dlFill.style.width = pct + '%';
+                        dlPercent.textContent = pct + '%';
+                        if (job.total) {
+                            var got = (job.received / 1048576).toFixed(1);
+                            var all = (job.total / 1048576).toFixed(1);
+                            dlText.textContent = '正在下载更新包 ' + got + ' / ' + all + ' MB';
+                        } else {
+                            dlText.textContent = '正在下载更新包…';
+                        }
+                        setTimeout(pollProgress, 400);
+                        return;
+                    }
+
+                    if (job.state === 'ready') {
+                        dlFill.style.width = '100%';
+                        dlPercent.textContent = '100%';
+                        dlText.textContent = '安装完毕，正在重启程序…';
+                        elText.textContent = '正在安装更新…';
+                        var bridge = window.chrome.webview.hostObjects.desktopBridge;
+                        bridge.ApplyUpdate(job.path).then(function (r) {
+                            if (r && r !== 'ok') {
+                                dlText.textContent = '启动安装失败：' + r;
+                                setBusy(false);
+                            }
+                        });
+                        return;
+                    }
+
+                    // error
+                    dlText.textContent = job.error || '下载失败';
+                    elText.textContent = '下载失败：' + (job.error || '未知原因');
+                    setBusy(false);
+                })
+                .catch(function () {
+                    setTimeout(pollProgress, 800);
+                });
+        }
+    }
+    elClose.addEventListener('click', function() { dialog.close(); });
+
+    // 切换体验通道：保存后立刻按新通道查一次
+    elBeta.addEventListener('change', function() {
+        var body = new URLSearchParams();
+        body.set('beta', elBeta.checked ? '1' : '');
+        body.set('csrf_token', csrf);
+
+        fetch('/update/settings', { method: 'POST', body: body })
+            .then(function(r) { return r.json(); })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (res) { if (res.result) render(res.result); })
+            .catch(function (err) { elText.textContent = '切换通道失败：' + err.message; });
+    });
+
+    // 页面加载时读一次缓存，有更新就在菜单上挂红点（每小时后台会自动刷新缓存）
+    fetch('/update/status', { headers: { 'X-Requested-With': 'fetch' } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (badge) badge.hidden = !data.has_update;
+        })
+        .catch(function() {});
+})();
+</script>
