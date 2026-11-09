@@ -235,6 +235,11 @@
         bodyArea.style.display = 'none';
         doneArea.classList.add('is-on');
         doneDir.textContent = '安装位置：' + dir;
+
+        var cancelBtn = document.getElementById('cancel');
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        installBtn.style.display = 'none';
+
         setTimeout(function () { if (api) api.CloseSetup(true); }, 1600);
     };
 

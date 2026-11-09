@@ -115,36 +115,39 @@ public sealed class SetupWebForm : Form
         return panel;
     }
 
-    internal void PostProgress(int percent, string text)
+    /// <summary>
+    /// 在 UI 线程执行一段脚本。
+    /// WebView2 的 ExecuteScriptAsync 只能在创建控件的线程上调用，
+    /// 安装跑在后台线程，所以必须切回 UI 线程，否则调用会静默失败、界面卡在「准备安装…」。
+    /// </summary>
+    private void RunScript(string script)
     {
-        if (IsDisposed || _web.CoreWebView2 is null) return;
-        try // 失败（窗口已关）不影响安装继续
+        if (IsDisposed) return;
+
+        try
         {
-            _web.CoreWebView2.ExecuteScriptAsync(
-                $"window.__progress && window.__progress({percent}, {JsonSerializer.Serialize(text)})");
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(() => RunScript(script)));
+                return;
+            }
+
+            var core = _web.CoreWebView2;
+            if (core is null) return;
+
+            core.ExecuteScriptAsync(script);
         }
         catch { }
     }
 
-    internal void PostDone(string dir)
-    {
-        try
-        {
-            _web.CoreWebView2.ExecuteScriptAsync(
-                $"window.__done && window.__done({JsonSerializer.Serialize(dir)})");
-        }
-        catch { }
-    }
+    internal void PostProgress(int percent, string text) =>
+        RunScript($"window.__progress && window.__progress({percent}, {JsonSerializer.Serialize(text)})");
 
-    internal void PostError(string message)
-    {
-        try
-        {
-            _web.CoreWebView2.ExecuteScriptAsync(
-                $"window.__error && window.__error({JsonSerializer.Serialize(message)})");
-        }
-        catch { }
-    }
+    internal void PostDone(string dir) =>
+        RunScript($"window.__done && window.__done({JsonSerializer.Serialize(dir)})");
+
+    internal void PostError(string message) =>
+        RunScript($"window.__error && window.__error({JsonSerializer.Serialize(message)})");
 
     internal void CloseFromScript(bool exit = false)
     {
