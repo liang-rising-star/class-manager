@@ -8,12 +8,13 @@
     <AssemblyName>class-manager</AssemblyName>
     <RootNamespace>ClassManager.Launcher</RootNamespace>
     <ApplicationIcon>..\logo.ico</ApplicationIcon>
-    <AssemblyTitle>class-manager</AssemblyTitle>
-    <Product>class-manager</Product>
+    <AssemblyTitle>班级管理系统</AssemblyTitle>
+    <Product>班级管理系统</Product>
+    <Description>班级管理系统 · 启动器</Description>
     <Company>liang-rising-star</Company>
-    <Version>3.0.0</Version>
-    <AssemblyVersion>3.0.0.0</AssemblyVersion>
-    <FileVersion>3.0.0.0</FileVersion>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
     <DebugType>none</DebugType>
 
     <!-- 原生 AOT：编译成单个原生 exe，不依赖 .NET 运行时，也不需要在根目录放一堆 DLL -->

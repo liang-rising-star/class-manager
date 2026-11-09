@@ -41,7 +41,7 @@ def get_default_config():
 
 def reset():
     print("=" * 40)
-    print("  班级积分系统 - 恢复出厂设置")
+    print("  班级管理系统 - 恢复出厂设置")
     print("=" * 40)
     print()
 

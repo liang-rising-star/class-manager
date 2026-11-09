@@ -41,6 +41,11 @@ namespace ClassManager.KioskAgent
             var marshallerHandle = _marshaller.Handle;
             GC.KeepAlive(marshallerHandle);
 
+            _server.ExitRequested += () =>
+            {
+                try { _marshaller.BeginInvoke(new Action(ExitApp)); } catch { }
+            };
+
             _server.Announce.RequestShow = (show, text) =>
             {
                 try { _marshaller.BeginInvoke(new Action(() => ApplyAnnouncement(show, text))); }
@@ -177,6 +182,13 @@ namespace ClassManager.KioskAgent
                 await _server.StartAsync();
                 _server.ApplyRuntimeSettings();
                 UpdateTrayText();
+
+                // 起来几秒后再加保护，避免启动阶段出错时连自己也杀不掉
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(4000);
+                    try { _marshaller.BeginInvoke(new Action(() => ProcessGuard.Protect())); } catch { }
+                });
             }
             catch (Exception ex)
             {
@@ -344,6 +356,8 @@ namespace ClassManager.KioskAgent
 
         private void ExitApp()
         {
+            ProcessGuard.Unprotect();      // 先放开保护，否则进程结束不掉
+
             _tray.Visible = false;
             try { _ = _server.StopAsync(); } catch { }
             _form?.CloseForExit();

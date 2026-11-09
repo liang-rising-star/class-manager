@@ -11,7 +11,7 @@ namespace ClassManager.Setup;
 internal static class Program
 {
     public const string AppName = "班级管理系统";
-    public const string AppVersion = "3.0";
+    public const string AppVersion = "1.0";
     public const string ExeName = "class-manager.exe";
     public const string PayloadResource = "payload.zip";
 

@@ -59,3 +59,7 @@ _msg*.txt
 _out.txt
 _upd.json
 _o.txt
+
+# 安装程序中间产物
+installer/ClassManager.KioskSetup/payload.zip
+installer/ClassManager.Setup/payload.zip

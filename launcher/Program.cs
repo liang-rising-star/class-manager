@@ -20,7 +20,7 @@ internal static class Program
     private const uint MB_ICONERROR = 0x00000010;
 
     private static void Error(string text) =>
-        MessageBoxW(IntPtr.Zero, text, "class-manager", MB_ICONERROR);
+        MessageBoxW(IntPtr.Zero, text, "班级管理系统", MB_ICONERROR);
 
     [STAThread]
     private static int Main(string[] args)

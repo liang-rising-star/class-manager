@@ -38,6 +38,9 @@ namespace ClassManager.KioskAgent
         public VideoUdpServer Video { get; } = new VideoUdpServer();
         public AudioPlaybackService Talkback { get; } = new AudioPlaybackService();
         public ScreenService Screen { get; } = new ScreenService();
+
+        /// <summary>请求宿主程序正常退出（会解除进程保护）</summary>
+        public event Action ExitRequested;
         public DisplayService Display { get; } = new DisplayService();
         public AnnounceService Announce { get; } = new AnnounceService();
 
@@ -809,6 +812,18 @@ namespace ClassManager.KioskAgent
                 });
 
                 return Json(ctx, new { ok = true, restarting = true });
+            });
+
+            // ---------- 退出程序（卸载前调用；会先解除进程保护） ----------
+            app.MapPost("/api/exit", (HttpContext ctx) =>
+            {
+                Log.Write("收到退出指令，程序即将关闭");
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(300);
+                    try { ExitRequested?.Invoke(); } catch { }
+                });
+                return Json(ctx, new { ok = true, exiting = true });
             });
 
             // ---------- 屏幕直播（按需采集） ----------

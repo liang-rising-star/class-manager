@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -14,8 +14,8 @@
     <AssemblyTitle>班级管理系统 卸载程序</AssemblyTitle>
     <Product>班级管理系统</Product>
     <Company>liang-rising-star</Company>
-    <Version>3.0.0</Version>
-    <FileVersion>3.0.0.0</FileVersion>
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.0.0</FileVersion>
     <DebugType>none</DebugType>
     <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
     <InvariantGlobalization>true</InvariantGlobalization>

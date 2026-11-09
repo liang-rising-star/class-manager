@@ -113,7 +113,7 @@ Write-Host "== 5/5 收尾 ==" -ForegroundColor Cyan
 Copy-Item (Join-Path $root "logo.ico") (Join-Path $backendDir "logo.ico") -Force -ErrorAction SilentlyContinue
 
 @"
-class-manager  v$appVersion
+班级管理系统  v$appVersion
 =================
 
 启动：双击根目录的 class-manager.exe
