@@ -79,8 +79,11 @@ namespace ClassManager.KioskAgent
         {
             try
             {
-                var menu = new TrayMenu();
+                var menu = new TrayMenu(AutoStart.IsEnabled());
                 menu.OpenRequested += ShowMainWindow;
+                menu.OpenBrowserRequested += OpenInBrowser;
+                menu.ToggleAutoStartRequested += ToggleAutoStart;
+                menu.RestartRequested += () => _ = RestartServerAsync();
                 menu.ExitRequested += ExitWithPassword;
 
                 var area = Screen.FromPoint(Cursor.Position).WorkingArea;
@@ -129,6 +132,46 @@ namespace ClassManager.KioskAgent
                 ShowTrayMenu();
             };
             t.Start();
+        }
+
+        private void OpenInBrowser()
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_server.LocalUrl)
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Write("打开浏览器失败: " + ex.Message);
+            }
+        }
+
+        private void ToggleAutoStart()
+        {
+            bool target = !AutoStart.IsEnabled();
+            if (AutoStart.Set(target))
+                _tray.ShowBalloonTip(2500, "开机自启", target ? "已开启" : "已关闭", ToolTipIcon.Info);
+        }
+
+        private async Task RestartServerAsync()
+        {
+            try
+            {
+                Log.Write("托盘菜单：重启服务");
+                await _server.StopAsync();
+                await _server.StartAsync();
+                _server.ApplyRuntimeSettings();
+                UpdateTrayText();
+                _form?.Reload();
+                _tray.ShowBalloonTip(2500, "服务已重启", _server.LanUrl, ToolTipIcon.Info);
+            }
+            catch (Exception ex)
+            {
+                Log.Write("重启服务失败: " + ex.Message);
+            }
         }
 
         /// <summary>退出前校验访问密码（未设密码则直接退出）。</summary>

@@ -6,7 +6,7 @@ namespace ClassManager.KioskAgent
     /// <summary>
     /// 托盘右键菜单：与教师端（班主任端）完全同一套 GDI 自绘样式
     /// （白底、12px 圆角、淡蓝悬停、图标 + 文字）。
-    /// 只有两项：打开设置 / 退出。
+    /// 菜单项：打开设置 / 在浏览器中打开 / 开机自启 / 重启服务 / 退出。
     /// </summary>
     internal sealed class TrayMenu : Form
     {
@@ -25,9 +25,12 @@ namespace ClassManager.KioskAgent
         private readonly List<Control> _rows = new();
 
         public event Action? OpenRequested;
+        public event Action? OpenBrowserRequested;
+        public event Action? ToggleAutoStartRequested;
+        public event Action? RestartRequested;
         public event Action? ExitRequested;
 
-        public TrayMenu()
+        public TrayMenu(bool autoStartEnabled)
         {
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
@@ -41,16 +44,25 @@ namespace ClassManager.KioskAgent
             Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular, GraphicsUnit.Point);
 
             AddRow("打开设置", "\uE713", () => OpenRequested?.Invoke(), bold: true, accent: true);
+            AddRow("在浏览器中打开", "\uE774", () => OpenBrowserRequested?.Invoke());
+
             AddSeparator();
+
+            AddRow("开机自启", "\uE768", () => ToggleAutoStartRequested?.Invoke(),
+                   checkedState: autoStartEnabled);
+            AddRow("重启服务", "\uE72C", () => RestartRequested?.Invoke());
+
+            AddSeparator();
+
             AddRow("退出", "\uE7E8", () => ExitRequested?.Invoke(), danger: true);
 
             LayoutRows();
         }
 
         private void AddRow(string text, string glyph, Action onClick, bool bold = false,
-                            bool accent = false, bool danger = false)
+                            bool accent = false, bool danger = false, bool? checkedState = null)
         {
-            var row = new MenuRow(text, glyph, bold, accent, danger)
+            var row = new MenuRow(text, glyph, bold, accent, danger, checkedState)
             {
                 Width = RowWidth,
                 Height = RowHeight,
@@ -145,15 +157,17 @@ namespace ClassManager.KioskAgent
             private readonly bool _bold;
             private readonly Color _fg;
             private readonly Color _hover;
+            private readonly bool? _checkedState;
             private bool _hot;
 
             public event Action? Clicked;
 
-            public MenuRow(string text, string glyph, bool bold, bool accent, bool danger)
+            public MenuRow(string text, string glyph, bool bold, bool accent, bool danger, bool? checkedState = null)
             {
                 _text = text;
                 _glyph = glyph;
                 _bold = bold;
+                _checkedState = checkedState;
                 _fg = danger ? Danger : accent ? Accent : TextColor;
                 _hover = danger ? DangerHoverBg : HoverBg;
                 SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
@@ -195,6 +209,16 @@ namespace ClassManager.KioskAgent
                 var textRect = new Rectangle(36, 0, Width - 44, Height);
                 var sf2 = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
                 g.DrawString(_text, font, textBrush, textRect, sf2);
+
+                // 勾选态（开机自启）：右侧画对勾
+                if (_checkedState == true)
+                {
+                    using var tickFont = new Font("Segoe MDL2 Assets", 9.5f, FontStyle.Regular, GraphicsUnit.Point);
+                    using var tickBrush = new SolidBrush(Accent);
+                    var tickRect = new Rectangle(Width - 34, 0, 22, Height);
+                    var sf3 = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                    g.DrawString("\uE73E", tickFont, tickBrush, tickRect, sf3);
+                }
             }
         }
 
