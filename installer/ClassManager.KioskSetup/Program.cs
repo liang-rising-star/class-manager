@@ -467,15 +467,13 @@ internal static class Installer
             key.SetValue("NoModify", 1, RegistryValueKind.DWord);
             key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
 
-            var uninstaller = Path.Combine(dir, "kiosk-uninstall.cmd");
-            File.WriteAllText(uninstaller,
-                "@echo off\r\n" +
-                "taskkill /im " + Program.KioskExe + " >nul 2>&1\r\n" +
-                "timeout /t 2 >nul\r\n" +
-                "rmdir /s /q \"" + dir + "\"\r\n", Encoding.Default);
-
-            key.SetValue("UninstallString", "\"" + uninstaller + "\"");
-            key.SetValue("QuietUninstallString", "\"" + uninstaller + "\"");
+            // 卸载程序随安装包一起铺到安装目录（uninstall.exe）
+            var uninstaller = Path.Combine(dir, "uninstall.exe");
+            if (File.Exists(uninstaller))
+            {
+                key.SetValue("UninstallString", "\"" + uninstaller + "\" --dir \"" + dir + "\"");
+                key.SetValue("QuietUninstallString", "\"" + uninstaller + "\" --dir \"" + dir + "\" --silent");
+            }
         }
         catch { }
     }

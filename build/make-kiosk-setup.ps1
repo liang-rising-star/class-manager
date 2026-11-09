@@ -41,6 +41,17 @@ if (-not (Test-Path (Join-Path $kioskOut "class-manager-kiosk.exe"))) {
     throw "dist\kiosk-agent 里没有 class-manager-kiosk.exe"
 }
 
+Write-Host "== 1.5/4 编译卸载程序 → 放进安装目录 ==" -ForegroundColor Cyan
+$uninstOut = Join-Path $dist "kiosk-uninstall-out"
+if (Test-Path $uninstOut) { Remove-Item $uninstOut -Recurse -Force }
+dotnet publish (Join-Path $root "installer\ClassManager.KioskUninstall\ClassManager.KioskUninstall.csproj") `
+    -c $Configuration -r win-x64 --nologo -o $uninstOut | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "卸载程序编译失败" }
+
+Copy-Item (Join-Path $uninstOut "uninstall.exe") (Join-Path $kioskOut "uninstall.exe") -Force
+Remove-Item $uninstOut -Recurse -Force
+Write-Host ("   卸载程序：uninstall.exe（" + [math]::Round((Get-Item (Join-Path $kioskOut "uninstall.exe")).Length / 1MB, 1) + " MB）") -ForegroundColor Green
+
 Write-Host "== 2/4 生成载荷 payload.zip ==" -ForegroundColor Cyan
 if (Test-Path $payload) { Remove-Item $payload -Force }
 
