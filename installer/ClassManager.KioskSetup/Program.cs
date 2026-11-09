@@ -97,6 +97,9 @@ internal static class Installer
     {
         dir = Path.GetFullPath(dir);
 
+        progress?.Invoke("关闭正在运行的一体机端…");
+        StopKiosk(dir);
+
         progress?.Invoke("准备安装目录…");
         Directory.CreateDirectory(dir);
 
@@ -176,7 +179,19 @@ internal static class Installer
     /// </summary>
     private static void StopKiosk(string dir)
     {
-        var procs = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(Program.KioskExe));
+        // 只处理安装目录下的实例，别误伤开发机/另一个位置的副本
+        var procs = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(Program.KioskExe))
+            .Where(p =>
+            {
+                try
+                {
+                    var path = p.MainModule?.FileName;
+                    return path is null || path.StartsWith(dir, StringComparison.OrdinalIgnoreCase);
+                }
+                catch { return true; }
+            })
+            .ToArray();
+
         if (procs.Length == 0) return;
 
         // 1) 优雅退出：用本地配置里的访问密钥请求 /api/exit
@@ -212,15 +227,41 @@ internal static class Installer
             try { p.WaitForExit(6000); } catch { }
         }
 
-        // 3) 还在就强杀（正常情况下走不到这里）
+        // 3) 还在就强杀（会先解除进程保护）
         foreach (var p in procs)
         {
             try
             {
                 if (p.HasExited) continue;
-                p.Kill();
-                p.WaitForExit(3000);
+                ProcessForcer.TryKill(p, 4000);
             }
+            catch { }
+        }
+
+        // 4) 目录下的其它残留进程（例如旧版本、看门狗）
+        foreach (var p in Process.GetProcesses())
+        {
+            try
+            {
+                if (p.Id == Environment.ProcessId) continue;
+                var path = p.MainModule?.FileName;
+                if (path is null || !path.StartsWith(dir, StringComparison.OrdinalIgnoreCase)) continue;
+                ProcessForcer.TryKill(p, 3000);
+            }
+            catch { }
+        }
+
+        // 5) 仍然活着就别继续删文件，明确报错让用户先手动退出
+        foreach (var p in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(Program.KioskExe)))
+        {
+            try
+            {
+                var path = p.MainModule?.FileName;
+                if (path is not null && path.StartsWith(dir, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        "一体机端仍在运行，无法卸载。请先在托盘图标上右键退出，再重新卸载。");
+            }
+            catch (InvalidOperationException) { throw; }
             catch { }
         }
     }

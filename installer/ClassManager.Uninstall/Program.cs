@@ -396,10 +396,18 @@ internal static class Uninstaller
         // 1) 主程序：按进程名全杀（exe 名是我们独有的 class-manager）
         foreach (var proc in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(Program.ExeName)))
         {
+            ProcessForcer.TryKill(proc, 4000);
+        }
+
+        // 1.5) 安装目录下的其它进程（启动器 / 一体机端 / 任何占用文件的程序）一并结束
+        foreach (var proc in Process.GetProcesses())
+        {
             try
             {
-                proc.Kill(entireProcessTree: true);
-                proc.WaitForExit(3000);
+                if (proc.Id == Environment.ProcessId) continue;
+                var path = proc.MainModule?.FileName;
+                if (path is null || !IsInside(dir, path)) continue;
+                ProcessForcer.TryKill(proc, 3000);
             }
             catch { }
         }
@@ -412,8 +420,7 @@ internal static class Uninstaller
             {
                 var path = proc.MainModule?.FileName;
                 if (path is null || !IsInside(dir, path)) continue;
-                proc.Kill(entireProcessTree: true);
-                proc.WaitForExit(2000);
+                ProcessForcer.TryKill(proc, 3000);
                 killed.Add(proc.Id);
             }
             catch { }
@@ -448,8 +455,7 @@ internal static class Uninstaller
                     try
                     {
                         using var target = Process.GetProcessById(pid);
-                        target.Kill(entireProcessTree: true);
-                        target.WaitForExit(2000);
+                        ProcessForcer.TryKill(target, 3000);
                     }
                     catch { }
                 }
@@ -463,6 +469,33 @@ internal static class Uninstaller
             Thread.Sleep(300);
             if (!HasAppProcess(dir)) break;
         }
+
+        // 还有残留就再来一轮（这一轮会强制解除进程保护）
+        if (HasAppProcess(dir))
+        {
+            foreach (var name in new[] { Path.GetFileNameWithoutExtension(Program.ExeName), "python", "class-manager-kiosk" })
+            {
+                foreach (var proc in Process.GetProcessesByName(name))
+                {
+                    try
+                    {
+                        var path = proc.MainModule?.FileName;
+                        if (path is null || !IsInside(dir, path)) continue;
+                        ProcessForcer.TryKill(proc, 4000);
+                    }
+                    catch { }
+                }
+            }
+
+            for (var i = 0; i < 10; i++)
+            {
+                Thread.Sleep(300);
+                if (!HasAppProcess(dir)) break;
+            }
+        }
+
+        if (HasAppProcess(dir))
+            throw new InvalidOperationException("程序仍在运行，无法卸载。请先在托盘图标上右键退出，再重新卸载。");
     }
 
     /// <summary>安装目录下还有没有活着的进程。</summary>
