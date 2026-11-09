@@ -38,6 +38,7 @@ namespace ClassManager.KioskAgent
         public VideoUdpServer Video { get; } = new VideoUdpServer();
         public AudioPlaybackService Talkback { get; } = new AudioPlaybackService();
         public ScreenService Screen { get; } = new ScreenService();
+        public DisplayService Display { get; } = new DisplayService();
 
         /// <summary>配置变更后通知托盘等刷新</summary>
         public event Action ConfigChanged;
@@ -177,7 +178,8 @@ namespace ClassManager.KioskAgent
 
         private static bool IsPublicApi(string path)
         {
-            return path.Equals("/api/info", StringComparison.OrdinalIgnoreCase)
+            return path.Equals("/api/display/state", StringComparison.OrdinalIgnoreCase)
+                || path.Equals("/api/info", StringComparison.OrdinalIgnoreCase)
                 || path.Equals("/api/login", StringComparison.OrdinalIgnoreCase)
                 || path.Equals("/api/setup", StringComparison.OrdinalIgnoreCase);
         }
@@ -295,6 +297,12 @@ namespace ClassManager.KioskAgent
                     clients = Screen.Clients,
                     fps = Screen.Fps,
                     error = Screen.LastError
+                },
+                display = new
+                {
+                    showing = Display.Showing,
+                    updatedAt = Display.UpdatedAt == DateTime.MinValue
+                        ? "" : Display.UpdatedAt.ToString("HH:mm:ss")
                 },
                 speak = new
                 {
@@ -634,6 +642,40 @@ namespace ClassManager.KioskAgent
             {
                 SpeakService.StopAll();
                 return Json(ctx, new { ok = true });
+            });
+
+            // ---------- 投屏：全屏展示教师端推来的画面 ----------
+            app.MapPost("/api/display/show", async (HttpContext ctx) =>
+            {
+                var body = await ReadJson(ctx);
+                string json = "{}";
+                try { json = body.GetRawText(); } catch { }
+
+                Display.Show(json);
+                return Json(ctx, new { ok = true, showing = true });
+            });
+
+            app.MapPost("/api/display/hide", (HttpContext ctx) =>
+            {
+                Display.Hide();
+                return Json(ctx, new { ok = true, showing = false });
+            });
+
+            app.MapGet("/api/display/state", (HttpContext ctx) =>
+            {
+                string raw;
+                lock (Display) { raw = Display.State; }
+                object state;
+                try
+                {
+                    state = JsonSerializer.Deserialize<JsonElement>(raw);
+                }
+                catch
+                {
+                    state = new { };
+                }
+
+                return Json(ctx, new { ok = true, showing = Display.Showing, state });
             });
 
             // ---------- 在一体机上用浏览器打开指定网址 ----------

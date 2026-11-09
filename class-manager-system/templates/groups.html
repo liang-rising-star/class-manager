@@ -6,6 +6,7 @@
     <link rel="icon" href="/logo.ico" type="image/x-icon">
     <title>小组分配 · {{ system_name }}</title>
     <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+    <script src="/static/js/drag.js?v={{ css_version }}"></script>
     <style>
         .grp-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
         .grp-toolbar input[type="number"] {
@@ -201,11 +202,6 @@
             b.style.display = on ? '' : 'none';
         });
 
-        // 可拖动
-        document.querySelectorAll('.grp-member').forEach(function (el) {
-            el.draggable = on;
-        });
-
         // 每组底部提示
         document.querySelectorAll('.grp-card').forEach(function (card) {
             var empty = card.querySelector('.grp-empty');
@@ -246,43 +242,25 @@
         syncEmptyCard();
     };
 
-    // ---- 拖放 ----
-    function onDragStart(e) {
-        var el = e.target.closest('.grp-member');
-        if (!editing || !el) { e.preventDefault(); return; }
-        dragEl = el;
-        el.classList.add('is-dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        try { e.dataTransfer.setData('text/plain', el.dataset.student); } catch (err) { }
-    }
-
-    function onDragEnd() {
-        if (dragEl) dragEl.classList.remove('is-dragging');
-        dragEl = null;
-        document.querySelectorAll('.is-drop').forEach(function (x) { x.classList.remove('is-drop'); });
-    }
-
-    function bindDropZone(zone, targetList) {
-        zone.addEventListener('dragover', function (e) {
-            if (!editing || !dragEl) return;
-            e.preventDefault();
-            zone.classList.add('is-drop');
-        });
-        zone.addEventListener('dragleave', function () { zone.classList.remove('is-drop'); });
-        zone.addEventListener('drop', function (e) {
-            if (!editing || !dragEl) return;
-            e.preventDefault();
-            zone.classList.remove('is-drop');
-            targetList.appendChild(dragEl);
+    // ---- 拖放（指针拖动，比原生 drag-and-drop 稳） ----
+    createPointerDrag({
+        itemSelector: '.grp-member',
+        zoneSelector: '.grp-card, #poolCard',
+        canDrag: function () { return editing; },
+        onDrop: function (itemEl, zoneEl) {
+            if (zoneEl.id === 'poolCard') {
+                poolList.appendChild(itemEl);
+            } else {
+                var list = zoneEl.querySelector('.grp-members');
+                if (!list) return;
+                list.appendChild(itemEl);
+            }
             refreshCounts();
             syncEmptyHint();
-        });
-    }
+        }
+    });
 
     function bindCard(card) {
-        var list = card.querySelector('.grp-members');
-        bindDropZone(card, list);
-
         var del = card.querySelector('.grp-del');
         if (del) {
             del.onclick = function () {
@@ -328,17 +306,6 @@
     });
 
     document.querySelectorAll('.grp-card').forEach(bindCard);
-    bindDropZone(poolCard, poolList);
-
-    // 未分组里的学生也要能拖出去
-    poolList.querySelectorAll('.grp-member').forEach(function (el) {
-        el.addEventListener('dragstart', onDragStart);
-        el.addEventListener('dragend', onDragEnd);
-    });
-
-    // 新增的成员（拖动后）也要绑定拖拽事件：统一用委托
-    document.addEventListener('dragstart', onDragStart, true);
-    document.addEventListener('dragend', onDragEnd, true);
 
     function refreshCounts() {
         document.querySelectorAll('.grp-card').forEach(function (card) {

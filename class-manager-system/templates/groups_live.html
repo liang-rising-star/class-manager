@@ -6,33 +6,74 @@
     <link rel="icon" href="/logo.ico" type="image/x-icon">
     <title>小组换座 · {{ system_name }}</title>
     <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+    <script src="/static/js/drag.js?v={{ css_version }}"></script>
     <style>
-        .live-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+        .live-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+        .live-toolbar select {
+            width: auto; min-width: 200px; padding: 8px 12px; border: 1px solid var(--border);
+            border-radius: 10px; background: #fbfcfe; font: inherit; font-size: 13.5px; outline: none;
+        }
+        .live-toolbar select:focus { border-color: var(--primary); }
         .live-toolbar input[type="number"] {
-            width: 88px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
+            width: 72px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
             background: #fbfcfe; font: inherit; font-size: 13.5px; outline: none;
         }
-        .live-toolbar input[type="number"]:focus { border-color: var(--primary); }
+        .live-toolbar .spacer { flex: 1; }
 
-        .live-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
-        .live-card {
-            border: 1px solid var(--border); border-radius: 16px; background: #fbfcfe;
-            padding: 16px 18px;
+        .score-list { display: flex; flex-direction: column; gap: 8px; }
+        .score-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; background: #fbfcfe;
         }
-        .live-card__title {
-            font-size: 15px; font-weight: 700; color: var(--primary);
-            margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;
+        .score-row .gname { font-weight: 650; font-size: 14px; min-width: 84px; }
+        .score-row .gmeta { font-size: 12.5px; color: var(--text-muted); flex: 1; }
+        .score-row input[type="number"] {
+            width: 86px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+            background: #fff; font: inherit; font-size: 14px; text-align: right; outline: none;
         }
-        .live-card__title span { font-size: 12px; font-weight: 400; color: var(--text-muted); }
-        .live-members { display: flex; flex-wrap: wrap; gap: 6px; }
-        .live-chip {
-            padding: 5px 11px; border-radius: 999px; background: #fff;
-            border: 1px solid var(--border); font-size: 14px;
+        .score-row input[type="number"]:focus { border-color: var(--primary); }
+        .score-row .rank {
+            width: 26px; height: 26px; border-radius: 50%; display: inline-flex;
+            align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700;
+            background: #eef1f6; color: #64748b; flex: 0 0 auto;
         }
-        .live-chip .g { font-size: 11.5px; color: var(--text-muted); margin-left: 4px; }
+        .score-row.is-top .rank { background: #fef3c7; color: #b45309; }
 
-        .live-hint { text-align: center; padding: 44px 20px; color: var(--text-muted); font-size: 13.5px; line-height: 1.9; }
-        .live-hint b { color: var(--text); }
+        .tray {
+            display: flex; flex-wrap: wrap; gap: 10px; min-height: 66px;
+            padding: 12px; border: 1px dashed var(--border-strong, #cbd5e1);
+            border-radius: 12px; background: #fbfcfe;
+        }
+        .tray.is-drop { border-color: var(--primary); background: #f5f9ff; }
+        .tray-hint { font-size: 12.5px; color: var(--text-faint); align-self: center; }
+
+        .seat-grid { display: grid; gap: 12px; }
+        .seat {
+            min-height: 96px; border: 1px dashed var(--border-strong, #cbd5e1);
+            border-radius: 14px; background: #f8fafc; padding: 10px;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .seat.is-drop { border-color: var(--primary); background: #eef4ff; border-style: solid; }
+        .seat__label { font-size: 12px; color: var(--text-faint); }
+
+        .tile {
+            border: 1px solid var(--border); border-radius: 12px; background: #fff;
+            padding: 9px 12px; font-size: 13.5px; cursor: grab; min-width: 120px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, .06);
+        }
+        .tile:active { cursor: grabbing; }
+        .tile.is-dragging { opacity: .4; }
+        .tile__head { display: flex; align-items: baseline; gap: 8px; }
+        .tile__name { font-weight: 700; }
+        .tile__score { font-size: 12px; color: var(--primary); }
+        .tile__members { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+
+        .drag-ghost { border-radius: 12px; }
+        .tile { touch-action: none; }
+
+        .cast-tip { font-size: 12.5px; color: var(--text-muted); margin-top: 10px; }
+        .cast-tip b { color: var(--primary); }
+        .pill-on { background: #dcfce7; color: #15803d; }
     </style>
 </head>
 <body>
@@ -43,71 +84,298 @@
     <main class="page">
         <div class="page-head">
             <h1 class="page-title">小组换座</h1>
-            <p class="page-desc">课堂现场随机换座分组，一键换一批，结果不会保存到名单</p>
+            <p class="page-desc">给每个小组打分数 → 按分数排序 → 把小组拖进座位 → 投屏到一体机</p>
         </div>
 
         <section class="card">
             <div class="live-toolbar" style="margin-bottom:0">
-                <span style="font-size:13.5px;color:var(--text-muted)">分成</span>
-                <input type="number" id="liveCount" min="2" max="12" value="4">
-                <span style="font-size:13.5px;color:var(--text-muted)">组</span>
-                <button type="button" class="btn btn-sm" id="liveGo">开始分组</button>
-                <button type="button" class="btn btn-ghost btn-sm" id="liveAgain" disabled>重新随机</button>
-                <span style="flex:1"></span>
-                <span style="font-size:13px;color:var(--text-muted)">名单里共 {{ total }} 名学生</span>
+                <span style="font-size:13.5px;color:var(--text-muted)">投屏到</span>
+                <select id="devSel"></select>
+                <button type="button" class="btn btn-sm" id="castBtn">投屏</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="stopCastBtn" style="display:none">停止投屏</button>
+                <span class="status-pill" id="castPill" hidden>正在投屏</span>
+                <span class="spacer"></span>
+                <span style="font-size:13px;color:var(--text-muted)">座位列数</span>
+                <input type="number" id="colInput" min="1" max="6" value="3">
+            </div>
+            <div class="cast-tip" id="castTip">一体机会全屏显示下面的座位表，教师端改动后点「投屏」即可刷新。</div>
+        </section>
+
+        <section class="card">
+            <div class="card-title">① 打分数</div>
+            <div class="score-list" id="scoreList">
+                <div class="tray-hint">还没有小组，先去「小组分配」里建组。</div>
+            </div>
+            <div class="live-toolbar" style="margin:14px 0 0">
+                <button type="button" class="btn btn-sm" id="sortBtn">按分数排序</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="resetScoreBtn">清空分数</button>
             </div>
         </section>
 
-        <div id="liveResult">
-            <div class="live-hint">
-                选好组数，点「开始分组」现场随机分一次。<br>
-                想换一批直接点「重新随机」。
+        <section class="card">
+            <div class="card-title">② 拖进座位</div>
+            <div class="tray" id="tray">
+                <span class="tray-hint">把小组拖到下面的座位里</span>
             </div>
-        </div>
+            <div class="seat-grid" id="seatGrid" style="margin-top:14px"></div>
+        </section>
     </main>
     </div>
 
 <script>
 (function () {
     var csrf = {{ csrf_token|tojson }};
-    var total = {{ total }};
-    var resultEl = document.getElementById('liveResult');
-    var countEl = document.getElementById('liveCount');
-    var againBtn = document.getElementById('liveAgain');
+    var devices = {{ devices|tojson }};
 
-    function shuffle() {
-        if (!total) {
-            appAlert({ title: '名单是空的', text: '先到「学生名单」里导入或手动添加学生。' });
+    var devSel = document.getElementById('devSel');
+    var scoreList = document.getElementById('scoreList');
+    var tray = document.getElementById('tray');
+    var seatGrid = document.getElementById('seatGrid');
+    var colInput = document.getElementById('colInput');
+    var castBtn = document.getElementById('castBtn');
+    var stopCastBtn = document.getElementById('stopCastBtn');
+    var castPill = document.getElementById('castPill');
+
+    var groups = [];        // {id, name, members:[{name,gender}], score}
+    var placed = [];        // 每个座位的 groupId 或 null
+
+
+    // ---------------- 设备 ----------------
+    devices.forEach(function (d) {
+        var o = document.createElement('option');
+        o.value = d.id;
+        o.textContent = (d.name || d.host) + (d.room ? '（' + d.room + '）' : '');
+        devSel.appendChild(o);
+    });
+    if (!devices.length) {
+        devSel.innerHTML = '<option value="">无设备，请先在设置里添加</option>';
+        castBtn.disabled = true;
+    }
+
+    // ---------------- 加载小组 ----------------
+    function load() {
+        fetch('/groups/list.json?t=' + Date.now())
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                groups = (data.groups || []).map(function (g) {
+                    return { id: g.id, name: g.name, members: g.members || [], score: '' };
+                });
+                if (!groups.length) {
+                    scoreList.innerHTML = '<div class="tray-hint">还没有小组，先去「小组分配」里建组。</div>';
+                }
+                renderScores();
+                resetSeats();
+                renderAll();
+            })
+            .catch(function () { });
+    }
+
+    // ---------------- 打分区 ----------------
+    function sortedGroups() {
+        return groups.slice().sort(function (a, b) {
+            var sa = a.score === '' ? -Infinity : Number(a.score);
+            var sb = b.score === '' ? -Infinity : Number(b.score);
+            if (sb !== sa) return sb - sa;
+            return a.name.localeCompare(b.name, 'zh-CN');
+        });
+    }
+
+    function renderScores() {
+        if (!groups.length) return;
+        scoreList.innerHTML = '';
+
+        sortedGroups().forEach(function (g, i) {
+            var row = document.createElement('div');
+            row.className = 'score-row' + (i === 0 && g.score !== '' ? ' is-top' : '');
+            row.dataset.gid = g.id;
+            row.innerHTML =
+                '<span class="rank">' + (i + 1) + '</span>' +
+                '<span class="gname">' + esc(g.name) + '</span>' +
+                '<span class="gmeta">' + g.members.length + ' 人 · ' +
+                    g.members.map(function (m) { return esc(m.name); }).join('、') + '</span>' +
+                '<input type="number" step="0.5" placeholder="分数" value="' + esc(g.score) + '">';
+
+            row.querySelector('input').addEventListener('input', function () {
+                g.score = this.value;
+            });
+            row.querySelector('input').addEventListener('change', function () {
+                renderScores();   // 分数改完：列表和待放区都按新排名重排
+                renderAll();
+            });
+
+            scoreList.appendChild(row);
+        });
+    }
+
+    document.getElementById('sortBtn').onclick = function () {
+        renderScores();
+        renderAll();
+    };
+
+    document.getElementById('resetScoreBtn').onclick = function () {
+        groups.forEach(function (g) { g.score = ''; });
+        renderScores();
+        renderAll();
+    };
+
+    // ---------------- 座位 ----------------
+    function seatCount() { return Math.max(groups.length, 1); }
+
+    function resetSeats() {
+        placed = new Array(seatCount()).fill(null);
+    }
+
+    function renderTray() {
+        var used = {};
+        placed.forEach(function (gid) { if (gid) used[gid] = true; });
+
+        var left = sortedGroups().filter(function (g) { return !used[g.id]; });
+        tray.innerHTML = '';
+
+        if (!left.length) {
+            tray.innerHTML = '<span class="tray-hint">' +
+                (groups.length ? '所有小组都已入座' : '还没有小组') + '</span>';
             return;
         }
 
+        left.forEach(function (g) {
+            tray.appendChild(makeTile(g, ''));
+        });
+    }
+
+    function makeTile(g, seatIndex) {
+        var el = document.createElement('div');
+        el.className = 'tile';
+        el.draggable = false;   // 用指针拖动，关掉原生拖拽避免冲突
+        el.dataset.gid = g.id;
+        if (seatIndex !== '' && seatIndex !== undefined) el.dataset.seat = seatIndex;
+
+        el.innerHTML =
+            '<div class="tile__head">' +
+                '<span class="tile__name">' + esc(g.name) + '</span>' +
+                (g.score !== '' ? '<span class="tile__score">' + esc(g.score) + ' 分</span>' : '') +
+            '</div>' +
+            '<div class="tile__members">' +
+                (g.members.map(function (m) { return esc(m.name); }).join('、') || '空组') +
+            '</div>';
+
+        return el;
+    }
+
+    function renderSeats() {
+        var cols = Math.max(1, Math.min(6, parseInt(colInput.value, 10) || 3));
+        seatGrid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+        seatGrid.innerHTML = '';
+
+        placed.forEach(function (gid, i) {
+            var seat = document.createElement('div');
+            seat.className = 'seat';
+            seat.dataset.seat = i;
+
+            var g = groups.filter(function (x) { return x.id === gid; })[0];
+            seat.innerHTML = '<span class="seat__label">座位 ' + (i + 1) + '</span>';
+            if (g) seat.appendChild(makeTile(g, i));
+
+            seatGrid.appendChild(seat);
+        });
+    }
+
+    function renderAll() {
+        renderTray();
+        renderSeats();
+    }
+
+
+    colInput.addEventListener('change', renderSeats);
+
+    // ---- 指针拖动：方块 ↔ 座位 / 待放区 ----
+    createPointerDrag({
+        itemSelector: '.tile',
+        zoneSelector: '.seat, .tray',
+        onDrop: function (tileEl, zoneEl) {
+            var gid = parseInt(tileEl.dataset.gid, 10);
+            if (!gid) return;
+
+            // 先把这个组从原来的座位里摘掉
+            placed = placed.map(function (x) { return x === gid ? null : x; });
+
+            if (zoneEl.classList.contains('seat')) {
+                var idx = parseInt(zoneEl.dataset.seat, 10);
+                var old = placed[idx];
+                placed[idx] = gid;
+
+                // 座位原来有人：换到被拖走的那个座位，否则回待放区
+                if (old && old !== gid) {
+                    var from = tileEl.dataset.seat;
+                    if (from !== undefined && from !== '') {
+                        placed[parseInt(from, 10)] = old;
+                    }
+                }
+            }
+
+            renderAll();
+        }
+    });
+
+    // ---------------- 投屏 ----------------
+    function buildPayload() {
+        var cols = Math.max(1, Math.min(6, parseInt(colInput.value, 10) || 3));
+
+        return {
+            title: '小组换座',
+            subtitle: new Date().toLocaleDateString('zh-CN'),
+            columns: cols,
+            slots: placed.map(function (gid, i) {
+                var g = groups.filter(function (x) { return x.id === gid; })[0];
+                if (!g) return { seat: '座位 ' + (i + 1) };
+                return {
+                    name: g.name,
+                    score: g.score,
+                    seat: '座位 ' + (i + 1),
+                    members: g.members
+                };
+            })
+        };
+    }
+
+    function postDisplay(action, payload) {
+        var dev = devSel.value;
+        if (!dev) { appAlert({ title: '没有可用设备', text: '请先在「设置 → 班级设备」里添加一体机。' }); return; }
+
         var fd = new FormData();
         fd.append('csrf_token', csrf);
-        fd.append('count', countEl.value || 2);
+        fd.append('action', action);
+        if (payload) fd.append('payload', JSON.stringify(payload));
 
-        fetch('/groups/live/shuffle', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } })
-            .then(function (r) { return r.json(); })
+        return fetch('/device/' + dev + '/display', {
+            method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (r) { return r.json(); });
+    }
+
+    castBtn.onclick = function () {
+        castBtn.disabled = true;
+        postDisplay('show', buildPayload())
             .then(function (res) {
-                if (!res.ok) { appAlert({ title: '分组失败', text: res.error || '' }); return; }
-                render(res.groups);
-                againBtn.disabled = false;
+                castBtn.disabled = false;
+                if (!res.ok) { appAlert({ title: '投屏失败', text: res.error || '' }); return; }
+                stopCastBtn.style.display = '';
+                castPill.hidden = false;
+                castPill.className = 'status-pill pill-on';
+                castPill.textContent = '正在投屏';
             })
-            .catch(function (err) { appAlert({ title: '分组失败', text: String(err) }); });
-    }
+            .catch(function (err) {
+                castBtn.disabled = false;
+                appAlert({ title: '投屏失败', text: String(err) });
+            });
+    };
 
-    function render(groups) {
-        resultEl.innerHTML = '<div class="live-grid">' + groups.map(function (g) {
-            var members = g.members.map(function (st) {
-                return '<span class="live-chip">' + esc(st.name) +
-                    (st.gender ? '<span class="g">' + esc(st.gender) + '</span>' : '') + '</span>';
-            }).join('');
-
-            return '<section class="live-card">' +
-                '<div class="live-card__title">第 ' + g.index + ' 组 <span>' + g.members.length + ' 人</span></div>' +
-                '<div class="live-members">' + (members || '<span class="live-chip">空</span>') + '</div>' +
-                '</section>';
-        }).join('') + '</div>';
-    }
+    stopCastBtn.onclick = function () {
+        postDisplay('hide').then(function (res) {
+            if (!res.ok) { appAlert({ title: '停止失败', text: res.error || '' }); return; }
+            stopCastBtn.style.display = 'none';
+            castPill.hidden = true;
+        });
+    };
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -115,11 +383,7 @@
         });
     }
 
-    document.getElementById('liveGo').onclick = shuffle;
-    againBtn.onclick = shuffle;
-    countEl.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); shuffle(); }
-    });
+    load();
 })();
 </script>
 </body>

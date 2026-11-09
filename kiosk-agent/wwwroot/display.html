@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小组换座 · 投屏</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; }
+        html, body {
+            margin: 0; height: 100%; overflow: hidden;
+            background: #0b1220;
+            color: #e8eefc;
+            font-family: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+        }
+        .wrap {
+            height: 100%; display: flex; flex-direction: column;
+            padding: 3.2vh 3.4vw;
+        }
+        .head { display: flex; align-items: baseline; gap: 18px; margin-bottom: 2.4vh; }
+        .title { font-size: 3.4vh; font-weight: 700; letter-spacing: .02em; }
+        .sub { font-size: 1.9vh; color: #8fa3c4; }
+        .head .spacer { flex: 1; }
+        .clock { font-size: 2.2vh; color: #8fa3c4; font-variant-numeric: tabular-nums; }
+
+        .board {
+            flex: 1; display: grid; gap: 1.6vh;
+            grid-auto-rows: minmax(20vh, auto);
+            align-content: start;
+            min-height: 0;
+        }
+        .slot {
+            border-radius: 18px;
+            background: rgba(255, 255, 255, .045);
+            border: 1px solid rgba(255, 255, 255, .08);
+            padding: 1.6vh 1.4vw;
+            display: flex; flex-direction: column; min-height: 0;
+            overflow: hidden;
+        }
+        .slot.is-empty { border-style: dashed; border-color: rgba(255,255,255,.13); }
+        .slot__head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 1vh; flex: 0 0 auto; }
+        .slot__name { font-size: 2.5vh; font-weight: 700; color: #7dd3fc; }
+        .slot__score { font-size: 1.7vh; color: #94a3b8; }
+        .slot__seat { font-size: 1.5vh; color: #64748b; margin-left: auto; }
+        .slot__members {
+            display: flex; flex-wrap: wrap; gap: .7vh .8vw;
+            font-size: 2.1vh; line-height: 1.25; overflow: hidden;
+        }
+        .m { padding: .3vh .7vw; border-radius: 999px; background: rgba(255,255,255,.06); }
+        .m .g { font-size: 1.5vh; color: #94a3b8; margin-left: 4px; }
+
+        .idle {
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            flex-direction: column; gap: 1.4vh; color: #64748b; font-size: 2.6vh;
+        }
+        .idle small { font-size: 1.8vh; color: #475569; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="head">
+        <div class="title" id="title">小组换座</div>
+        <div class="sub" id="sub"></div>
+        <div class="spacer"></div>
+        <div class="clock" id="clock"></div>
+    </div>
+    <div id="board" class="board"></div>
+</div>
+
+<script>
+(function () {
+    var board = document.getElementById('board');
+    var titleEl = document.getElementById('title');
+    var subEl = document.getElementById('sub');
+    var clockEl = document.getElementById('clock');
+    var lastJson = '';
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function tick() {
+        var d = new Date();
+        clockEl.textContent = d.toLocaleTimeString('zh-CN', { hour12: false });
+    }
+
+    function render(state) {
+        titleEl.textContent = state.title || '小组换座';
+        subEl.textContent = state.subtitle || '';
+
+        var slots = state.slots || [];
+        if (!slots.length) {
+            board.innerHTML = '<div class="idle">等待教师端投屏…<small>在「小组换座」页点「投屏到一体机」</small></div>';
+            board.style.gridTemplateColumns = '1fr';
+            return;
+        }
+
+        var want = state.columns || 3;
+        var cols = Math.max(1, Math.min(want, slots.length));
+        board.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+
+        board.innerHTML = slots.map(function (s, i) {
+            if (!s || !s.name) {
+                return '<div class="slot is-empty"><div class="slot__head">' +
+                    '<div class="slot__name" style="color:#475569">空位</div>' +
+                    '<div class="slot__seat">' + (s && s.seat ? esc(s.seat) : '') + '</div></div></div>';
+            }
+
+            var members = (s.members || []).map(function (m) {
+                var name = typeof m === 'string' ? m : (m.name || '');
+                var g = typeof m === 'string' ? '' : (m.gender || '');
+                return '<span class="m">' + esc(name) + (g ? '<span class="g">' + esc(g) + '</span>' : '') + '</span>';
+            }).join('');
+
+            return '<div class="slot">' +
+                '<div class="slot__head">' +
+                    '<div class="slot__name">' + esc(s.name) + '</div>' +
+                    (s.score !== undefined && s.score !== null && s.score !== ''
+                        ? '<div class="slot__score">' + esc(s.score) + ' 分</div>' : '') +
+                    '<div class="slot__seat">' + esc(s.seat || '') + '</div>' +
+                '</div>' +
+                '<div class="slot__members">' + (members || '<span class="m">—</span>') + '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    function poll() {
+        fetch('/api/display/state?t=' + Date.now(), { cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                var body = res && res.state ? JSON.stringify(res.state) : '';
+                if (body === lastJson) return;
+                lastJson = body;
+                render((res && res.state) || {});
+            })
+            .catch(function () { });
+    }
+
+    window.__poll = poll;
+
+    tick();
+    setInterval(tick, 1000);
+    poll();
+    setInterval(poll, 1000);
+})();
+</script>
+</body>
+</html>

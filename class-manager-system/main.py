@@ -2527,6 +2527,40 @@ async def device_audio_in(device_id: str, request: Request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
+@app.post("/device/{device_id}/display")
+async def device_display(device_id: str, request: Request, csrf_token: str = Form(None)):
+    """把「小组换座」画面推给一体机全屏展示，或让它停止展示。"""
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    dev = devices.get_device(device_id)
+    if not dev:
+        raise HTTPException(status_code=404, detail="设备不存在")
+
+    form = await request.form()
+    action = (form.get("action") or "show").strip()
+
+    if action == "hide":
+        try:
+            devices.agent_request(dev, "POST", "/api/display/hide", {})
+        except devices.AgentError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)})
+        return JSONResponse({"ok": True, "showing": False})
+
+    raw = form.get("payload") or "{}"
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "投屏数据格式不对"})
+
+    try:
+        devices.agent_request(dev, "POST", "/api/display/show", payload)
+    except devices.AgentError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)})
+
+    return JSONResponse({"ok": True, "showing": True})
+
+
 @app.post("/device/{device_id}/settings")
 async def device_remote_settings(device_id: str, request: Request,
                                  room_name: str = Form(""), device_name: str = Form(""),
@@ -3851,6 +3885,24 @@ def groups_clear(request: Request, csrf_token: str = Form(None)):
     return RedirectResponse(url="/groups", status_code=303)
 
 
+@app.get("/groups/list.json")
+def groups_list_json(request: Request):
+    _require_login(request)
+    gs, ungrouped = list_groups()
+    return JSONResponse({
+        "ok": True,
+        "groups": [
+            {
+                "id": g["id"],
+                "name": g["name"],
+                "members": [{"name": m["name"], "gender": m.get("gender", "")} for m in g["members"]],
+            }
+            for g in gs
+        ],
+        "ungrouped": [{"name": m["name"], "gender": m.get("gender", "")} for m in ungrouped],
+    })
+
+
 @app.get("/groups/live", response_class=HTMLResponse)
 def groups_live_page(request: Request):
     _require_login(request)
@@ -3861,9 +3913,12 @@ def groups_live_page(request: Request):
     finally:
         db.close()
 
+    devs = [d for d in devices.list_devices() if d.get("enabled", True)]
+
     return render(request, "groups_live.html", {
         "system_name": config["system"]["name"],
         "total": total,
+        "devices": devs,
     })
 
 

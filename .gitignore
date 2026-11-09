@@ -55,3 +55,4 @@ _dump*.txt
 # 临时截图与调试产物
 browser-screenshots/
 *.tmp
+_msg*.txt

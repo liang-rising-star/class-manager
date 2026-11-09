@@ -18,15 +18,71 @@ namespace ClassManager.KioskAgent
         private MainForm _form;
         private System.Windows.Forms.Timer _balloonTimer;
 
+        /// <summary>投屏窗口（可为空）</summary>
+        private DisplayForm _displayForm;
+
+        /// <summary>无界面控件，仅用来把 HTTP 线程的调用切回 UI 线程</summary>
+        private readonly Control _marshaller = new Control();
+
         public TrayApp()
         {
             _config = AgentConfig.Load();
             Log.Write($"一体机端启动，设备={_config.DeviceName} 端口={_config.Port}");
 
             _server = new AgentServer(_config);
+
+            // 强制创建句柄，否则 HTTP 线程调用 BeginInvoke 会抛「窗口句柄之前不能调用」
+            var marshallerHandle = _marshaller.Handle;
+            GC.KeepAlive(marshallerHandle);
+
+            _server.Display.RequestShow = (show, stateJson) =>
+            {
+                try { _marshaller.BeginInvoke(new Action(() => ApplyDisplay(show, stateJson))); }
+                catch (Exception ex) { Log.Write("投屏切换失败: " + ex.Message); }
+            };
+
             _tray = BuildTrayIcon();
 
             _ = StartServerAsync();
+        }
+
+        /// <summary>按需打开或关闭全屏投屏窗体（必须在 UI 线程调用）。</summary>
+        private void ApplyDisplay(bool show, string stateJson)
+        {
+            try
+            {
+                if (show)
+                {
+                    if (_displayForm == null || _displayForm.IsDisposed)
+                    {
+                        _displayForm = new DisplayForm(_server.LocalUrl + "display.html");
+                        _displayForm.Closed += () =>
+                        {
+                            _displayForm = null;
+                            _server.Display.MarkClosed();
+                        };
+                        _displayForm.Show();
+                        _displayForm.ForceTopMost();
+                        Log.Write("投屏窗口已打开");
+                    }
+                    else
+                    {
+                        _displayForm.ForceTopMost();
+                        _displayForm.Refresh(force: true);
+                    }
+                }
+                else
+                {
+                    if (_displayForm != null && !_displayForm.IsDisposed)
+                        _displayForm.Close();
+                    _displayForm = null;
+                    Log.Write("投屏窗口已关闭");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Write("投屏窗口异常: " + ex.Message);
+            }
         }
 
         private async Task StartServerAsync()
