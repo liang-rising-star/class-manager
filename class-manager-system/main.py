@@ -2393,6 +2393,11 @@ async def device_action(device_id: str, request: Request,
         elif action == "autostart":
             want = (enabled or "1").lower() not in ("0", "false", "off", "no")
             res = devices.agent_request(dev, "POST", "/api/autostart", {"enabled": want})
+        elif action == "shutdown":
+            try:
+                res = devices.agent_request(dev, "POST", "/api/power/off", {}, timeout=3)
+            except devices.AgentError:
+                res = {"ok": True, "action": "shutdown"}
         elif action == "restart":
             try:
                 res = devices.agent_request(dev, "POST", "/api/restart", {}, timeout=3)

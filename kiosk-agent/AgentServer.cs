@@ -606,6 +606,31 @@ namespace ClassManager.KioskAgent
                 return Json(ctx, new { ok = true });
             });
 
+            // ---------- 关机（整台一体机） ----------
+            app.MapPost("/api/power/off", (HttpContext ctx) =>
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(600);
+                    try
+                    {
+                        var psi = new System.Diagnostics.ProcessStartInfo("shutdown.exe", "/s /t 0 /f")
+                        {
+                            CreateNoWindow = true,
+                            UseShellExecute = false
+                        };
+                        System.Diagnostics.Process.Start(psi);
+                        Log.Write("收到关机指令，已执行 shutdown /s");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Write("关机失败: " + ex.Message);
+                    }
+                });
+
+                return Json(ctx, new { ok = true, action = "shutdown" });
+            });
+
             // ---------- 重启一体机端（进程级） ----------
             app.MapPost("/api/restart", (HttpContext ctx) =>
             {

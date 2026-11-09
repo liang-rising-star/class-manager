@@ -88,6 +88,7 @@
                 <button type="button" class="btn btn-ghost" id="kIdentify">测试播报</button>
                 <button type="button" class="btn btn-ghost" id="kAutostart">开机自启</button>
                 <button type="button" class="btn btn-ghost" id="kRestart">重启一体机端</button>
+                <button type="button" class="btn btn-danger" id="kShutdown">关机</button>
                 <button type="button" class="btn btn-ghost" id="kOpenUrl">打开网址</button>
             </div>
 
@@ -237,6 +238,27 @@
           .then(function (res) {
               out.textContent = JSON.stringify(res, null, 2) + '\n\n约 5 秒后自动刷新状态…';
               setTimeout(refresh, 5000);
+          })
+          .catch(function (e) { out.textContent = '失败：' + e; });
+    };
+
+    document.getElementById('kShutdown').onclick = function () {
+        if (!current) return;
+        var name = current.name || current.host;
+        if (!confirm('确定关闭「' + name + '」这台一体机？\n\n关机后该设备会离线，' +
+                     '需要到教室按电源键手动开机。')) return;
+
+        var body = new URLSearchParams();
+        body.set('action', 'shutdown');
+        body.set('csrf_token', csrf);
+        out.textContent = '正在发送关机指令…';
+
+        fetch('/device/' + current.id + '/action', {
+            method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (r) { return r.json(); })
+          .then(function (res) {
+              out.textContent = JSON.stringify(res, null, 2) + '\n\n设备即将关机并离线。';
+              setTimeout(refresh, 6000);
           })
           .catch(function (e) { out.textContent = '失败：' + e; });
     };
