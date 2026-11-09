@@ -2293,6 +2293,53 @@ async def device_audio_in(device_id: str, request: Request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
+@app.post("/device/{device_id}/settings")
+async def device_remote_settings(device_id: str, request: Request,
+                                 room_name: str = Form(""), device_name: str = Form(""),
+                                 width: str = Form(""), height: str = Form(""),
+                                 fps: str = Form(""), quality: str = Form(""),
+                                 csrf_token: str = Form(None)):
+    """远程下发基础设置：教室名、设备名、摄像头分辨率/帧率/画质。"""
+    check_csrf(request, csrf_token)
+    _require_login(request)
+
+    dev = devices.get_device(device_id)
+    if not dev:
+        raise HTTPException(status_code=404, detail="设备不存在")
+
+    payload = {}
+    if room_name.strip() or device_name.strip():
+        payload["roomName"] = room_name.strip()
+        payload["deviceName"] = device_name.strip()
+
+    cam = {}
+    try:
+        if width:
+            cam["width"] = int(width)
+        if height:
+            cam["height"] = int(height)
+        if fps:
+            cam["fps"] = int(fps)
+        if quality:
+            cam["quality"] = int(quality)
+    except ValueError:
+        return JSONResponse({"ok": False, "error": "分辨率/帧率/画质必须是数字"})
+
+    if cam:
+        cam["enabled"] = True
+        payload["camera"] = cam
+
+    if not payload:
+        return JSONResponse({"ok": False, "error": "没有要修改的内容"})
+
+    try:
+        res = devices.agent_request(dev, "POST", "/api/settings", payload, timeout=5)
+    except devices.AgentError as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+    return JSONResponse({"ok": True, "result": res})
+
+
 @app.post("/device/{device_id}/audio-stop")
 async def device_audio_stop(device_id: str, request: Request):
     check_csrf(request, None)
@@ -2398,6 +2445,11 @@ async def device_action(device_id: str, request: Request,
                 res = devices.agent_request(dev, "POST", "/api/power/off", {}, timeout=3)
             except devices.AgentError:
                 res = {"ok": True, "action": "shutdown"}
+        elif action == "reboot":
+            try:
+                res = devices.agent_request(dev, "POST", "/api/power/reboot", {}, timeout=3)
+            except devices.AgentError:
+                res = {"ok": True, "action": "reboot"}
         elif action == "restart":
             try:
                 res = devices.agent_request(dev, "POST", "/api/restart", {}, timeout=3)

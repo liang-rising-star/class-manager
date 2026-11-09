@@ -42,6 +42,8 @@
             white-space: pre-wrap; max-height: 280px; overflow: auto; min-height: 96px;
         }
         .kc-empty { text-align: center; padding: 50px 20px; color: var(--text-muted); }
+        .kc-sub { font-size: 14px; margin: 4px 0 12px; color: var(--text-strong); }
+        .kc-screen + .kc-sub, .kc-row + .kc-sub { margin-top: 20px; }
 
         .kc-screen {
             background: #0f172a; border-radius: 12px; aspect-ratio: 16 / 10;
@@ -85,12 +87,62 @@
             </p>
 
             <div class="kc-row">
-                <button type="button" class="btn btn-ghost" id="kIdentify">测试播报</button>
-                <button type="button" class="btn btn-ghost" id="kAutostart">开机自启</button>
-                <button type="button" class="btn btn-ghost" id="kRestart">重启一体机端</button>
                 <button type="button" class="btn btn-danger" id="kShutdown">关机</button>
+                <button type="button" class="btn btn-ghost" id="kReboot">重启</button>
                 <button type="button" class="btn btn-ghost" id="kOpenUrl">打开网址</button>
             </div>
+
+            <h3 class="kc-sub">远程设置</h3>
+            <div class="kc-row">
+                <button type="button" class="btn btn-ghost" id="kIdentify">测试播报</button>
+                <button type="button" class="btn btn-ghost" id="kAutostart">开机自启</button>
+                <button type="button" class="btn btn-ghost" id="kSettings">一体机设置</button>
+            </div>
+
+            <dialog id="setDlg" class="modal" style="width:min(460px,calc(100vw - 40px))">
+                <form id="setForm" class="modal__body">
+                    <h3 class="modal__title">一体机设置</h3>
+                    <p class="modal__text">下发的设置会在该一体机上立即生效</p>
+
+                    <div class="field">
+                        <label class="field-label">教室 / 班级</label>
+                        <input type="text" id="sRoom" placeholder="例如：三年级二班"
+                               style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:#fbfcfe;font:inherit;font-size:13.5px;outline:none">
+                    </div>
+                    <div class="field">
+                        <label class="field-label">设备名称</label>
+                        <input type="text" id="sName" placeholder="例如：3-2 一体机"
+                               style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:#fbfcfe;font:inherit;font-size:13.5px;outline:none">
+                    </div>
+                    <div class="field">
+                        <label class="field-label">分辨率</label>
+                        <select id="sRes" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:#fbfcfe;font:inherit;font-size:13.5px;outline:none">
+                            <option value="640x360">360P（640×360）</option>
+                            <option value="1280x720">720P（1280×720）</option>
+                            <option value="1920x1080">1080P（1920×1080）</option>
+                            <option value="2560x1440">2K（2560×1440）</option>
+                            <option value="3840x2160">4K（3840×2160）</option>
+                        </select>
+                    </div>
+                    <div class="kc-row" style="margin-bottom:0">
+                        <div style="flex:1">
+                            <label class="field-label">帧率</label>
+                            <input type="number" id="sFps" min="1" max="30" value="30"
+                                   style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:#fbfcfe;font:inherit;font-size:13.5px;outline:none">
+                        </div>
+                        <div style="flex:1">
+                            <label class="field-label">画质</label>
+                            <input type="number" id="sQuality" min="30" max="95" value="70"
+                                   style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:#fbfcfe;font:inherit;font-size:13.5px;outline:none">
+                        </div>
+                    </div>
+
+                    <div class="modal__actions" style="margin-top:18px">
+                        <button type="button" class="btn btn-ghost" id="sCancel">取消</button>
+                        <button type="submit" class="btn">保存</button>
+                    </div>
+                </form>
+            </dialog>
 
             <h3 style="font-size:14px;margin:0 0 12px;color:var(--text-strong)">屏幕直播</h3>
             <div class="kc-screen" id="kScreenBox">
@@ -121,6 +173,7 @@
     var out = document.getElementById('kOut');
     var current = null;
     var autoStartOn = false;
+    var lastDetail = null;
 
     if (!devices.length) { emptyEl.hidden = false; return; }
     panelEl.hidden = false;
@@ -170,6 +223,7 @@
                 pill.textContent = online ? '在线' : (st.error ? '连接失败' : '离线');
 
                 var ag = st.detail || {};
+                lastDetail = ag;
                 var cam = ag.camera || {};
                 var mic = ag.mic || {};
                 var rem = ag.remote || {};
@@ -223,12 +277,13 @@
           .catch(function (e) { out.textContent = '失败：' + e; });
     };
 
-    document.getElementById('kRestart').onclick = function () {
+    document.getElementById('kReboot').onclick = function () {
         if (!current) return;
-        if (!confirm('确定重启「' + (current.name || current.host) + '」的一体机端？\n重启期间该设备的监控和叫号会中断约 5 秒。')) return;
+        var name = current.name || current.host;
+        if (!confirm('确定重启「' + name + '」这台一体机？\n\n整台电脑会重启，该设备会离线约 1 分钟。')) return;
 
         var body = new URLSearchParams();
-        body.set('action', 'restart');
+        body.set('action', 'reboot');
         body.set('csrf_token', csrf);
         out.textContent = '正在重启…';
 
@@ -236,8 +291,8 @@
             method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
         }).then(function (r) { return r.json(); })
           .then(function (res) {
-              out.textContent = JSON.stringify(res, null, 2) + '\n\n约 5 秒后自动刷新状态…';
-              setTimeout(refresh, 5000);
+              out.textContent = JSON.stringify(res, null, 2) + '\n\n设备正在重启，约 1 分钟后自动刷新状态…';
+              setTimeout(refresh, 60000);
           })
           .catch(function (e) { out.textContent = '失败：' + e; });
     };
@@ -266,8 +321,64 @@
     document.getElementById('kOpenUrl').onclick = function () {
         if (!current) return;
         var url = 'http://' + current.host + ':' + current.port + '/';
+        if (!confirm('将在新标签页打开「' + (current.name || current.host) + '」的本地页面：\n\n' + url + '\n\n继续？')) return;
         window.open(url, '_blank');
     };
+
+    // ---- 一体机设置弹窗 ----
+    var setDlg = document.getElementById('setDlg');
+    var setForm = document.getElementById('setForm');
+
+    document.getElementById('kSettings').onclick = function () {
+        if (!current) return;
+        var ag = lastDetail || {};
+        var cam = ag.camera || {};
+
+        document.getElementById('sRoom').value = ag.room || '';
+        document.getElementById('sName').value = ag.device || '';
+
+        var key = (cam.width || 1280) + 'x' + (cam.height || 720);
+        var sel = document.getElementById('sRes');
+        var matched = false;
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === key) { sel.value = key; matched = true; break; }
+        }
+        if (!matched) sel.value = '1280x720';
+
+        document.getElementById('sFps').value = cam.fps || 30;
+        document.getElementById('sQuality').value = cam.quality || 70;
+
+        setDlg.showModal();
+    };
+
+    document.getElementById('sCancel').onclick = function () { setDlg.close(); };
+
+    setForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!current) return;
+
+        var res = document.getElementById('sRes').value.split('x');
+        var body = new URLSearchParams();
+        body.set('csrf_token', csrf);
+        body.set('room_name', document.getElementById('sRoom').value.trim());
+        body.set('device_name', document.getElementById('sName').value.trim());
+        body.set('width', res[0]);
+        body.set('height', res[1]);
+        body.set('fps', document.getElementById('sFps').value || 30);
+        body.set('quality', document.getElementById('sQuality').value || 70);
+
+        fetch('/device/' + current.id + '/settings', {
+            method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (r) { return r.json(); })
+          .then(function (r2) {
+              setDlg.close();
+              out.textContent = JSON.stringify(r2, null, 2);
+              refresh();
+          })
+          .catch(function (err) {
+              out.textContent = '保存失败：' + err;
+          });
+    });
 
     document.getElementById('kIdentify').onclick = function () {
         if (!current) return;
