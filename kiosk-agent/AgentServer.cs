@@ -606,6 +606,35 @@ namespace ClassManager.KioskAgent
                 return Json(ctx, new { ok = true });
             });
 
+            // ---------- 在一体机上用浏览器打开指定网址 ----------
+            app.MapPost("/api/browser/open", (HttpContext ctx, Dictionary<string, string> body) =>
+            {
+                body.TryGetValue("url", out var raw);
+                var url = (raw ?? "").Trim();
+                Log.Write("收到打开网址请求: [" + url + "]");
+
+                if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                    (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                {
+                    return Json(ctx, new { ok = false, error = "只能打开 http/https 网址" });
+                }
+
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.ToString())
+                    {
+                        UseShellExecute = true
+                    });
+                    Log.Write("远程打开网址: " + uri);
+                    return Json(ctx, new { ok = true, url = uri.ToString() });
+                }
+                catch (Exception ex)
+                {
+                    Log.Write("打开网址失败: " + ex.Message);
+                    return Json(ctx, new { ok = false, error = ex.Message });
+                }
+            });
+
             // ---------- 关机（整台一体机） ----------
             app.MapPost("/api/power/off", (HttpContext ctx) =>
             {

@@ -175,6 +175,24 @@
                 </form>
             </dialog>
 
+            <dialog id="urlDlg" class="modal" style="width:min(460px,calc(100vw - 40px))">
+                <form id="urlForm" class="modal__body">
+                    <h3 class="modal__title">在一体机上打开网址</h3>
+                    <p class="modal__text">用该一体机的默认浏览器打开下面的网址</p>
+
+                    <div class="field">
+                        <label class="field-label">网址</label>
+                        <input type="text" id="uUrl" placeholder="https://example.com"
+                               style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:#fbfcfe;font:inherit;font-size:13.5px;outline:none">
+                    </div>
+
+                    <div class="modal__actions" style="margin-top:18px">
+                        <button type="button" class="btn btn-ghost" id="uCancel">取消</button>
+                        <button type="submit" class="btn">打开</button>
+                    </div>
+                </form>
+            </dialog>
+
             <h3 style="font-size:14px;margin:0 0 12px;color:var(--text-strong)">屏幕直播</h3>
             <div class="kc-screen" id="kScreenBox"></div>
 
@@ -363,12 +381,47 @@
           .catch(function (e) { out.textContent = '失败：' + e; });
     };
 
+    // ---- 打开网址（远程在一体机上打开） ----
+    var urlDlg = document.getElementById('urlDlg');
+    var urlForm = document.getElementById('urlForm');
+
     document.getElementById('kOpenUrl').onclick = function () {
         if (!current) return;
-        var url = 'http://' + current.host + ':' + current.port + '/';
-        if (!confirm('将在新标签页打开「' + (current.name || current.host) + '」的本地页面：\n\n' + url + '\n\n继续？')) return;
-        window.open(url, '_blank');
+        document.getElementById('uUrl').value = localStorage.getItem('cm.lastUrl') || '';
+        urlDlg.showModal();
+        setTimeout(function () { document.getElementById('uUrl').focus(); }, 50);
     };
+
+    document.getElementById('uCancel').onclick = function () { urlDlg.close(); };
+
+    urlForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!current) return;
+
+        var url = (document.getElementById('uUrl').value || '').trim();
+        if (!/^https?:\/\//i.test(url)) {
+            alert('网址需要以 http:// 或 https:// 开头');
+            return;
+        }
+        localStorage.setItem('cm.lastUrl', url);
+
+        var body = new URLSearchParams();
+        body.set('action', 'open_url');
+        body.set('csrf_token', csrf);
+        body.set('text', url);
+
+        out.textContent = '正在一体机上打开：' + url;
+        fetch('/device/' + current.id + '/action', {
+            method: 'POST', body: body, headers: { 'X-Requested-With': 'fetch' }
+        }).then(function (r) { return r.json(); })
+          .then(function (res) {
+              urlDlg.close();
+              out.textContent = JSON.stringify(res, null, 2);
+          })
+          .catch(function (err) {
+              out.textContent = '打开失败：' + err;
+          });
+    });
 
     // ---- 一体机设置弹窗 ----
     var setDlg = document.getElementById('setDlg');

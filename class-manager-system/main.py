@@ -2445,6 +2445,13 @@ async def device_action(device_id: str, request: Request,
                 res = devices.agent_request(dev, "POST", "/api/power/off", {}, timeout=3)
             except devices.AgentError:
                 res = {"ok": True, "action": "shutdown"}
+        elif action == "open_url":
+            target = (text or "").strip()
+            if not target.lower().startswith(("http://", "https://")):
+                return JSONResponse({"ok": False,
+                                     "error": "网址必须以 http:// 或 https:// 开头"},
+                                    status_code=400)
+            res = devices.agent_request(dev, "POST", "/api/browser/open", {"url": target})
         elif action == "reboot":
             try:
                 res = devices.agent_request(dev, "POST", "/api/power/reboot", {}, timeout=3)
