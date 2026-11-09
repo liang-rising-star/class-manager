@@ -39,7 +39,7 @@ internal static class Program
             var target = string.IsNullOrWhiteSpace(dir) ? DefaultDir : dir!;
             try
             {
-                Installer.Uninstall(target, silent ? null : (Action<string>)(m => Console.WriteLine(m)));
+                Installer.Uninstall(target, silent ? null : (Action<int, string>)((p, m) => Console.WriteLine(m)));
                 if (!silent)
                     MessageBox.Show("已卸载：" + target, AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return 0;
@@ -66,12 +66,37 @@ internal static class Program
             }
         }
 
-        Application.Run(new SetupForm());
+        Application.Run(new SetupWebForm());
         return 0;
     }
 
-    public static string DefaultDir =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ClassManager-Kiosk");
+    /// <summary>
+    /// 默认装到非系统盘根目录下的 ClassManager-Kiosk；
+    /// 没有其它盘时退回 %LOCALAPPDATA%，普通用户都能写，不需要管理员权限。
+    /// </summary>
+    public static string DefaultDir
+    {
+        get
+        {
+            try
+            {
+                foreach (var drive in DriveInfo.GetDrives())
+                {
+                    if (!drive.IsReady) continue;
+                    if (drive.DriveType != DriveType.Fixed) continue;
+                    if (string.Equals(drive.Name, Path.GetPathRoot(Environment.SystemDirectory),
+                            StringComparison.OrdinalIgnoreCase)) continue;
+
+                    return Path.Combine(drive.RootDirectory.FullName, "ClassManager-Kiosk");
+                }
+            }
+            catch { }
+
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ClassManager-Kiosk");
+        }
+    }
 
     private static string? ArgValue(string[] args, string name)
     {
@@ -88,22 +113,31 @@ internal sealed class InstallOptions
     public bool Autostart { get; set; } = true;
     public bool DesktopShortcut { get; set; } = true;
     public bool StartMenuShortcut { get; set; } = true;
+
+    /// <summary>安装前清空本机已有配置（出厂状态，安装包本身不携带任何密码/密钥）</summary>
+    public bool ClearExistingConfig { get; set; } = true;
 }
 
 internal static class Installer
 {
     /// <summary>安装：解压载荷 → 建快捷方式 → 写自启 → 写卸载登记。</summary>
-    public static void Install(string dir, InstallOptions options, Action<string>? progress)
+    public static void Install(string dir, InstallOptions options, Action<int, string>? progress)
     {
         dir = Path.GetFullPath(dir);
 
-        progress?.Invoke("关闭正在运行的一体机端…");
+        progress?.Invoke(4, "关闭正在运行的一体机端…");
         StopKiosk(dir);
 
-        progress?.Invoke("准备安装目录…");
+        if (options.ClearExistingConfig)
+        {
+            progress?.Invoke(9, "清除本机旧配置（恢复出厂）…");
+            ResetLocalConfig();
+        }
+
+        progress?.Invoke(14, "准备安装目录…");
         Directory.CreateDirectory(dir);
 
-        progress?.Invoke("释放程序文件…");
+        progress?.Invoke(25, "释放程序文件…");
         ExtractPayload(dir);
 
         var exe = Path.Combine(dir, Program.KioskExe);
@@ -112,51 +146,51 @@ internal static class Installer
 
         if (options.DesktopShortcut)
         {
-            progress?.Invoke("创建桌面快捷方式…");
+            progress?.Invoke(70, "创建桌面快捷方式…");
             Shortcuts.CreateDesktop(exe, dir);
         }
 
         if (options.StartMenuShortcut)
         {
-            progress?.Invoke("创建开始菜单快捷方式…");
+            progress?.Invoke(76, "创建开始菜单快捷方式…");
             Shortcuts.CreateStartMenu(exe, dir);
         }
 
-        progress?.Invoke("写入开机自启…");
+        progress?.Invoke(82, "写入开机自启…");
         Autostart.Set(options.Autostart, exe, dir);
 
-        progress?.Invoke("登记卸载信息…");
+        progress?.Invoke(88, "登记卸载信息…");
         WriteUninstallEntry(dir, exe);
 
-        progress?.Invoke("启动一体机端…");
+        progress?.Invoke(94, "启动一体机端…");
         try
         {
             Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = dir });
         }
         catch { }
 
-        progress?.Invoke("安装完成");
+        progress?.Invoke(100, "安装完成");
     }
 
     /// <summary>卸载：先让一体机端正常退出，再删目录和登记信息。</summary>
-    public static void Uninstall(string dir, Action<string>? progress)
+    public static void Uninstall(string dir, Action<int, string>? progress)
     {
         dir = Path.GetFullPath(dir);
 
-        progress?.Invoke("关闭一体机端…");
+        progress?.Invoke(10, "关闭一体机端…");
         StopKiosk(dir);
 
-        progress?.Invoke("清理开机自启…");
+        progress?.Invoke(30, "清理开机自启…");
         Autostart.Set(false, null, null);
 
-        progress?.Invoke("删除快捷方式…");
+        progress?.Invoke(45, "删除快捷方式…");
         Shortcuts.Remove(dir);
 
-        progress?.Invoke("删除卸载登记…");
+        progress?.Invoke(55, "删除卸载登记…");
         try { Registry.CurrentUser.DeleteSubKeyTree(Program.UninstallKey, throwOnMissingSubKey: false); }
         catch { }
 
-        progress?.Invoke("删除程序文件…");
+        progress?.Invoke(65, "删除程序文件…");
         for (var i = 0; i < 5; i++)
         {
             try
@@ -170,7 +204,7 @@ internal static class Installer
             }
         }
 
-        progress?.Invoke("卸载完成");
+        progress?.Invoke(100, "卸载完成");
     }
 
     /// <summary>
@@ -264,6 +298,108 @@ internal static class Installer
             catch (InvalidOperationException) { throw; }
             catch { }
         }
+    }
+
+    /// <summary>
+    /// 把本机的一体机端配置挪走（恢复出厂）。
+    /// 安装包里不含任何密码/密钥，这里顺手把旧机器的配置也清掉，
+    /// 保证装完是「全新设备」状态，需要重新设访问密码。
+    /// </summary>
+    private static void ResetLocalConfig()
+    {
+        try
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ClassManager-KioskAgent");
+
+            if (!Directory.Exists(dir)) return;
+
+            var backup = dir + "-backup-" + DateTime.Now.ToString("yyyyMMddHHmmss");
+            try
+            {
+                Directory.Move(dir, backup);
+                Log("旧配置已备份到：" + backup);
+            }
+            catch
+            {
+                // 挪不动就删掉
+                try { Directory.Delete(dir, recursive: true); } catch { }
+            }
+        }
+        catch { }
+    }
+
+    internal static void Log(string message)
+    {
+        try
+        {
+            var path = Path.Combine(Path.GetTempPath(), "class-manager-kiosk-setup.log");
+            File.AppendAllText(path,
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + message + Environment.NewLine,
+                Encoding.UTF8);
+        }
+        catch { }
+    }
+
+    /// <summary>安装路径检查：给界面用的提示。</summary>
+    public static object CheckPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return new { ok = false, level = "bad", message = "请选择安装位置" };
+
+        try
+        {
+            var full = Path.GetFullPath(path);
+
+            if (full.Length <= 3)
+                return new { ok = false, level = "bad", message = "不要直接装在磁盘根目录，请加一个文件夹名" };
+
+            var root = Path.GetPathRoot(full) ?? "";
+
+            // 系统盘的程序目录需要管理员权限，普通安装会失败
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            if (!string.IsNullOrEmpty(programFiles) &&
+                full.StartsWith(programFiles, StringComparison.OrdinalIgnoreCase) && !IsElevated())
+            {
+                return new { ok = true, level = "warn", message = "该位置需要管理员权限，程序将无法自动更新；建议改到 D:\\ClassManager-Kiosk" };
+            }
+
+            var parent = Directory.Exists(full) ? full : Path.GetDirectoryName(full);
+            while (!string.IsNullOrEmpty(parent) && !Directory.Exists(parent))
+                parent = Path.GetDirectoryName(parent);
+
+            if (parent is not null && Directory.Exists(parent))
+            {
+                var probe = Path.Combine(parent, ".cm-write-test-" + Guid.NewGuid().ToString("N"));
+                try
+                {
+                    File.WriteAllText(probe, "x");
+                    File.Delete(probe);
+                }
+                catch
+                {
+                    return new { ok = false, level = "bad", message = "当前用户对该位置没有写入权限，换一个目录试试" };
+                }
+            }
+
+            return new { ok = true, level = "ok", message = "将安装到 " + full };
+        }
+        catch (Exception ex)
+        {
+            return new { ok = false, level = "bad", message = "路径无效：" + ex.Message };
+        }
+    }
+
+    private static bool IsElevated()
+    {
+        try
+        {
+            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var principal = new System.Security.Principal.WindowsPrincipal(identity);
+            return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        }
+        catch { return false; }
     }
 
     private static string? ExtractJsonString(string json, string key)

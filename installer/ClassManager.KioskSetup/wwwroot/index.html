@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>班级管理系统 · 一体机端 安装程序</title>
+<style>
+    * { box-sizing: border-box; user-select: none; }
+    html, body {
+        margin: 0; height: 100%; overflow: hidden;
+        font-family: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+        background: #f7f9fc; color: #0f172a;
+    }
+    .wrap { height: 100%; display: flex; flex-direction: column; }
+
+    /* 顶部 */
+    .head {
+        display: flex; align-items: center; gap: 14px;
+        padding: 14px 28px 10px;
+    }
+    .head img { width: 46px; height: 46px; }
+    .head h1 { font-size: 19px; margin: 0; font-weight: 700; }
+    .head p { margin: 3px 0 0; font-size: 12.5px; color: #64748b; }
+
+    /* 主体 */
+    .body { flex: 1; padding: 4px 28px 0; overflow: auto; }
+
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 13px; color: #475569; margin-bottom: 7px; }
+    .dir-row { display: flex; gap: 8px; }
+    .dir-row input {
+        flex: 1; padding: 10px 12px; border: 1px solid #dbe2ec; border-radius: 10px;
+        font: inherit; font-size: 13px; background: #fff; outline: none;
+    }
+    .dir-row input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+    .btn {
+        padding: 10px 16px; border-radius: 10px; border: 1px solid #dbe2ec; background: #fff;
+        font: inherit; font-size: 13px; color: #0f172a; cursor: pointer;
+    }
+    .btn:hover { border-color: #2563eb; color: #2563eb; }
+
+    .hint { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+    .hint.is-bad { color: #dc2626; }
+    .hint.is-ok { color: #15803d; }
+
+    .checks { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+    .check {
+        display: flex; align-items: flex-start; gap: 9px;
+        padding: 9px 13px; border: 1px solid #e2e8f0; border-radius: 11px; background: #fff;
+        cursor: pointer;
+    }
+    .check input { margin-top: 2px; }
+    .check b { display: block; font-size: 13px; font-weight: 600; }
+    .check span { display: block; font-size: 12px; color: #64748b; margin-top: 2px; }
+
+    /* 进度 */
+    .progress { margin-top: 14px; display: none; }
+    .progress.is-on { display: block; }
+    .bar { height: 6px; border-radius: 999px; background: #e6ecf5; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#2563eb,#38bdf8); transition: width .25s; }
+    .status { font-size: 12.5px; color: #64748b; margin-top: 8px; }
+
+    /* 底部 */
+    .foot {
+        display: flex; align-items: center; gap: 10px;
+        padding: 12px 28px 18px;
+    }
+    .foot .spacer { flex: 1; }
+    .primary {
+        padding: 11px 26px; border-radius: 10px; border: 0; cursor: pointer;
+        background: #2563eb; color: #fff; font: inherit; font-size: 13.5px; font-weight: 600;
+    }
+    .primary:hover { background: #1d4ed8; }
+    .primary:disabled { background: #93b4f5; cursor: default; }
+
+    /* 完成态 */
+    .done { display: none; flex-direction: column; align-items: center; justify-content: center;
+            height: 100%; gap: 12px; text-align: center; padding: 0 40px; }
+    .done.is-on { display: flex; }
+    .done .tick {
+        width: 62px; height: 62px; border-radius: 50%; background: #dcfce7; color: #16a34a;
+        display: flex; align-items: center; justify-content: center; font-size: 32px;
+    }
+    .done h2 { margin: 0; font-size: 18px; }
+    .done p { margin: 0; color: #64748b; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="head">
+        <img src="logo.png" alt="">
+        <div>
+            <h1 id="appName">班级管理系统 · 一体机端</h1>
+            <p id="appDesc">摄像头直播 · 双向对讲 · 语音播报 · 屏幕直播</p>
+        </div>
+    </div>
+
+    <div class="body" id="bodyArea">
+        <div class="field">
+            <label>安装位置</label>
+            <div class="dir-row">
+                <input id="dir" spellcheck="false">
+                <button class="btn" id="pick">选择文件夹…</button>
+            </div>
+            <div class="hint" id="dirHint">建议装在非系统盘，例如 D:\ClassManager-Kiosk</div>
+        </div>
+
+        <div class="field">
+            <label>安装选项</label>
+            <div class="checks">
+                <label class="check">
+                    <input type="checkbox" id="autostart" checked>
+                    <div>
+                        <b>开机自动启动</b>
+                        <span>一体机开机后自动进入待命状态（推荐）</span>
+                    </div>
+                </label>
+                <label class="check">
+                    <input type="checkbox" id="desktop" checked>
+                    <div>
+                        <b>创建桌面快捷方式</b>
+                        <span>方便手动打开设置界面</span>
+                    </div>
+                </label>
+                <label class="check">
+                    <input type="checkbox" id="reset" checked>
+                    <div>
+                        <b>清除本机已有配置（恢复出厂）</b>
+                        <span>安装包不携带任何密码/密钥；勾选后本机旧的访问密码、设备名会被清空</span>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <div class="progress" id="progress">
+            <div class="bar"><i id="fill"></i></div>
+            <div class="status" id="status">准备中…</div>
+        </div>
+    </div>
+
+    <div class="done" id="doneArea">
+        <div class="tick">✓</div>
+        <h2>安装完成</h2>
+        <p id="doneDir"></p>
+    </div>
+
+    <div class="foot">
+        <span class="hint" id="version"></span>
+        <div class="spacer"></div>
+        <button class="btn" id="cancel">取消</button>
+        <button class="primary" id="install">开始安装</button>
+    </div>
+</div>
+
+<script>
+(function () {
+    var api = window.chrome && window.chrome.webview && window.chrome.webview.hostObjects
+        ? window.chrome.webview.hostObjects.bridge : null;
+
+    var dirInput = document.getElementById('dir');
+    var dirHint = document.getElementById('dirHint');
+    var installBtn = document.getElementById('install');
+    var progress = document.getElementById('progress');
+    var fill = document.getElementById('fill');
+    var status = document.getElementById('status');
+    var bodyArea = document.getElementById('bodyArea');
+    var doneArea = document.getElementById('doneArea');
+    var doneDir = document.getElementById('doneDir');
+
+    var info = { appName: '班级管理系统 · 一体机端', version: '1.0', defaultDir: '' };
+
+    function boot() {
+        if (!api) return;
+        api.GetInfo().then(function (json) {
+            try { info = JSON.parse(json); } catch (e) { }
+            document.getElementById('appName').textContent = info.appName || '';
+            document.getElementById('version').textContent = '版本 v' + (info.version || '');
+            dirInput.value = info.defaultDir || '';
+            checkPath(dirInput.value);
+        });
+    }
+
+    function checkPath(path) {
+        if (!api || !path) return;
+        api.CheckPath(path).then(function (json) {
+            var r = {};
+            try { r = JSON.parse(json); } catch (e) { }
+            dirHint.textContent = r.message || '';
+            dirHint.className = 'hint ' + (r.ok ? 'is-ok' : (r.level === 'warn' ? '' : 'is-bad'));
+            installBtn.disabled = !r.ok;
+        });
+    }
+
+    document.getElementById('pick').onclick = function () {
+        if (!api) return;
+        api.PickFolder(dirInput.value).then(function (p) {
+            if (p) { dirInput.value = p; checkPath(p); }
+        });
+    };
+
+    dirInput.addEventListener('change', function () { checkPath(dirInput.value); });
+
+    document.getElementById('cancel').onclick = function () {
+        if (api) api.CloseSetup();
+    };
+
+    installBtn.onclick = function () {
+        if (!api) return;
+        installBtn.disabled = true;
+        progress.classList.add('is-on');
+        status.textContent = '准备安装…';
+
+        api.StartInstall(
+            dirInput.value,
+            document.getElementById('autostart').checked ? '1' : '0',
+            document.getElementById('desktop').checked ? '1' : '0',
+            document.getElementById('reset').checked ? '1' : '0'
+        );
+    };
+
+    // 宿主回调
+    window.__progress = function (percent, text) {
+        fill.style.width = Math.max(0, Math.min(100, percent)) + '%';
+        status.textContent = text;
+    };
+
+    window.__done = function (dir) {
+        bodyArea.style.display = 'none';
+        doneArea.classList.add('is-on');
+        doneDir.textContent = '安装位置：' + dir;
+        setTimeout(function () { if (api) api.CloseSetup(true); }, 1600);
+    };
+
+    window.__error = function (message) {
+        progress.classList.add('is-on');
+        fill.style.width = '0';
+        status.textContent = '安装失败：' + message;
+        status.style.color = '#dc2626';
+        installBtn.disabled = false;
+    };
+
+    boot();
+})();
+</script>
+</body>
+</html>

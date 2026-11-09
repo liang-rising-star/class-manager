@@ -31,7 +31,17 @@
   <ItemGroup>
     <!-- 一体机端的安装载荷：打包脚本会把 dist\kiosk-agent 压成 payload.zip 放进来 -->
     <EmbeddedResource Include="payload.zip" LogicalName="payload.zip" Condition="Exists('payload.zip')" />
-    <EmbeddedResource Include="..\..\logo.ico" LogicalName="res.logo.ico" />
+    <EmbeddedResource Include="..\..\logo.ico">
+      <LogicalName>res.logo.ico</LogicalName>
+    </EmbeddedResource>
+
+    <!-- WebView2 安装界面：编进 exe，运行时内联成 HTML -->
+    <EmbeddedResource Include="wwwroot\index.html" LogicalName="ui.index.html" />
+    <None Remove="wwwroot\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.*" />
   </ItemGroup>
 
 </Project>
