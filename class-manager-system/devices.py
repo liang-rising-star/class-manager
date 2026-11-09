@@ -68,6 +68,14 @@ def save_devices():
             json.dump(_devices, f, ensure_ascii=False, indent=2)
         os.replace(tmp, DEVICES_PATH)
 
+        # 设备清单是程序自己改的，改完立刻重新签名，
+        # 否则下次启动会把这次正常修改误报成「被外部修改」。
+        try:
+            import integrity
+            integrity.refresh()
+        except Exception:
+            pass
+
 
 def _normalize(d):
     try:

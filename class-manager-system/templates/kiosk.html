@@ -39,8 +39,18 @@
         .kc-out {
             background: #0f172a; color: #cbd5e1; border-radius: 10px; padding: 14px;
             font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
-            white-space: pre-wrap; max-height: 280px; overflow: auto; min-height: 96px;
+            white-space: pre-wrap; max-height: 340px; overflow: auto; min-height: 96px;
+            line-height: 1.55;
         }
+        .kc-out .t-block { margin-bottom: 12px; }
+        .kc-out .t-block:last-child { margin-bottom: 0; }
+        .kc-out .t-cmd { color: #7dd3fc; word-break: break-all; }
+        .kc-out .t-cmd::before { content: "> "; color: #64748b; }
+        .kc-out .t-body { color: #d5dee9; }
+        .kc-out .t-err { color: #fca5a5; }
+        .kc-out .t-meta { color: #64748b; font-size: 11.5px; }
+        .kc-out .t-meta.is-bad { color: #fca5a5; }
+        .kc-out .t-meta.is-ok { color: #86efac; }
         .kc-empty { text-align: center; padding: 50px 20px; color: var(--text-muted); }
         .kc-sub { font-size: 14px; margin: 4px 0 12px; color: var(--text-strong); }
         .kc-screen + .kc-sub, .kc-row + .kc-sub { margin-top: 20px; }
@@ -203,6 +213,7 @@
             <div class="kc-row">
                 <input type="text" id="kCmd" placeholder="指令内容，例如：ipconfig /all">
                 <button type="button" class="btn" id="kExec">执行</button>
+                <button type="button" class="btn btn-ghost" id="kClear">清空</button>
             </div>
 
             <div class="kc-out" id="kOut">等待操作…</div>
@@ -219,6 +230,7 @@
     var panelEl = document.getElementById('kPanel');
     var sel = document.getElementById('kDevice');
     var out = document.getElementById('kOut');
+    out.textContent = '';
     var current = null;
     var lastDetail = null;
 
@@ -234,7 +246,7 @@
 
     sel.addEventListener('change', function () {
         current = devices.filter(function (d) { return d.id === sel.value; })[0] || null;
-        out.textContent = '等待操作…';
+        termClear();
         refresh();
         renderScreenIdle();
     });
@@ -516,28 +528,95 @@
 
     document.getElementById('kIdentify').onclick = function () {
         if (!current) return;
-        out.textContent = '正在发送测试播报…';
+        termPrint('<div class="t-cmd">测试播报</div><div class="t-body">已发送，一体机会朗读一句测试语音</div>');
         postAction('identify').then(function (res) {
-            out.textContent = JSON.stringify(res, null, 2);
-        }).catch(function (e) { out.textContent = '失败：' + e; });
-    };
-
-    document.getElementById('kExec').onclick = function () {
-        if (!current) return;
-        var cmd = (document.getElementById('kCmd').value || '').trim();
-        if (!cmd) { document.getElementById('kCmd').focus(); return; }
-
-        out.textContent = '执行中…';
-        this.disabled = true;
-        var btn = this;
-        postAction('exec', { command: cmd }).then(function (res) {
-            btn.disabled = false;
-            out.textContent = JSON.stringify(res, null, 2);
+            var ok = !(res && res.ok === false);
+            termPrint('<div class="t-meta ' + (ok ? 'is-ok' : 'is-bad') + '">' +
+                (ok ? '发送成功' : '发送失败：' + esc((res && res.error) || '')) + '</div>');
         }).catch(function (e) {
-            btn.disabled = false;
-            out.textContent = '失败：' + e;
+            termPrint('<div class="t-err">发送失败：' + esc(String(e)) + '</div>');
         });
     };
+
+    // ---------------- 终端式输出 ----------------
+    function termClear() {
+        out.innerHTML = '';
+    }
+
+    function termPrint(html) {
+        var box = document.createElement('div');
+        box.className = 't-block';
+        box.innerHTML = html;
+        out.appendChild(box);
+        out.scrollTop = out.scrollHeight;
+    }
+
+    function termCommand(cmd) {
+        termPrint('<div class="t-cmd">' + esc(cmd) + '</div>');
+    }
+
+    function termResult(res) {
+        var r = (res && res.result) || {};
+
+        var ok = !(res && res.ok === false) && r.ok !== false;
+        if (r.timedOut) ok = false;
+        if (r.exitCode !== undefined && r.exitCode !== null && r.exitCode !== 0) ok = false;
+
+        var body = '';
+
+        if (r.output) {
+            body += '<div class="t-body">' + esc(String(r.output).replace(/\r\n/g, '\n')) + '</div>';
+        }
+        if (r.error) {
+            body += '<div class="t-err">' + esc(String(r.error).replace(/\r\n/g, '\n')) + '</div>';
+        }
+        if (res && res.error) {
+            body += '<div class="t-err">' + esc(String(res.error)) + '</div>';
+        }
+        if (!body) {
+            body = '<div class="t-meta">（无输出）</div>';
+        }
+
+        var meta = [];
+        if (r.exitCode !== undefined && r.exitCode !== null) meta.push('退出码 ' + r.exitCode);
+        if (r.timedOut) meta.push('执行超时');
+        if (r.durationMs) meta.push((r.durationMs / 1000).toFixed(1) + 's');
+
+        if (meta.length) {
+            body += '<div class="t-meta ' + (ok ? 'is-ok' : 'is-bad') + '">' +
+                esc(meta.join(' · ')) + '</div>';
+        }
+
+        termPrint(body);
+    }
+
+    function runCommand() {
+        if (!current) return;
+        var input = document.getElementById('kCmd');
+        var cmd = (input.value || '').trim();
+        if (!cmd) { input.focus(); return; }
+
+        var btn = document.getElementById('kExec');
+        termCommand(cmd);
+        input.value = '';
+        btn.disabled = true;
+
+        postAction('exec', { command: cmd }).then(function (res) {
+            btn.disabled = false;
+            termResult(res);
+            input.focus();
+        }).catch(function (e) {
+            btn.disabled = false;
+            termPrint('<div class="t-err">执行失败：' + esc(String(e)) + '</div>');
+        });
+    }
+
+    document.getElementById('kExec').onclick = runCommand;
+    document.getElementById('kClear').onclick = termClear;
+
+    document.getElementById('kCmd').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); runCommand(); }
+    });
 
     document.getElementById('kRefresh').onclick = refresh;
 

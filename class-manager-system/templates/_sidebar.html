@@ -259,6 +259,8 @@ document.addEventListener('cancel', function (e) {
             <span class="switch__track" aria-hidden="true"></span>
         </label>
 
+        <div class="update-repo" id="updateRepo">更新源：-</div>
+
         <div class="update-meta" id="updateMeta" hidden></div>
 
         <div class="update-download" id="updateDownload" hidden>
@@ -297,6 +299,7 @@ document.addEventListener('cancel', function (e) {
     var elLatest = document.getElementById('updateLatest');
     var elText = document.getElementById('updateText');
     var elMeta = document.getElementById('updateMeta');
+    var elRepo = document.getElementById('updateRepo');
     var elNotes = document.getElementById('updateNotes');
     var elOpen = document.getElementById('updateOpen');
     var elClose = document.getElementById('updateClose');
@@ -335,17 +338,26 @@ document.addEventListener('cancel', function (e) {
     function render(data) {
         if (data.beta !== undefined && elBeta) elBeta.checked = !!data.beta;
         elCurrent.textContent = 'v' + (data.current || '-');
+
+        // 显示当前使用的更新源，改仓库后一眼能看出来
+        if (elRepo && data.repo) elRepo.textContent = '更新源：github.com/' + data.repo;
+        if (data.url && elOpen) elOpen.href = data.url;
         elLatest.textContent = data.latest ? 'v' + data.latest + (data.prerelease ? ' 体验版' : '') : '—';
 
         if (data.error) {
-            elText.textContent = data.error + '，请检查网络后重试。';
+            // 后端已经给出人话（可能是"仓库还没有发布版本"），只在纯网络类错误后加提示
+            var msg = data.error;
+            if (msg.indexOf('网络') < 0 && msg.indexOf('仓库') < 0) {
+                msg += '，请检查网络后重试。';
+            }
+            elText.textContent = msg;
             if (applyBtn) {
                 applyBtn.hidden = true;
                 applyBtn.classList.remove('btn--new');
             }
             elMeta.hidden = true;
             if (notesWrap) notesWrap.hidden = true;
-            elOpen.hidden = true;
+            elOpen.hidden = false;      // 出错也让用户能点去发布页看看
             return;
         }
 

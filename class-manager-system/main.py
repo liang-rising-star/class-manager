@@ -40,7 +40,7 @@ app = FastAPI()
 
 # 获取当前文件所在目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = "3.0"
+APP_VERSION = "1.0"
 
 # 配置静态文件
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
@@ -1689,10 +1689,28 @@ def mark_boot_shown():
 
 # ---------------- 检查更新 ----------------
 
-UPDATE_REPO = "liang-rising-star/class-manager"
-UPDATE_LATEST_API = f"https://api.github.com/repos/{UPDATE_REPO}/releases/latest"
-UPDATE_LIST_API = f"https://api.github.com/repos/{UPDATE_REPO}/releases?per_page=10"
-UPDATE_PAGE = f"https://github.com/{UPDATE_REPO}/releases"
+# 默认更新仓库；可在 config.json 的 update.repo 改成别的仓库，不用改代码
+DEFAULT_UPDATE_REPO = "liang-rising-star/class-manager"
+
+
+def update_repo():
+    """当前使用的更新仓库（owner/name）。"""
+    try:
+        cfg = read_config()
+        repo = str(((cfg.get("update") or {}).get("repo")) or "").strip()
+    except Exception:
+        repo = ""
+    return repo or DEFAULT_UPDATE_REPO
+
+
+def update_urls():
+    repo = update_repo()
+    return {
+        "repo": repo,
+        "latest": f"https://api.github.com/repos/{repo}/releases/latest",
+        "list": f"https://api.github.com/repos/{repo}/releases?per_page=10",
+        "page": f"https://github.com/{repo}/releases",
+    }
 
 # 下载任务的实时状态（单任务，够用）
 _update_job = {
@@ -1726,12 +1744,14 @@ def _github_get(url):
 
 def _pick_release(beta):
     """正式通道取 latest；体验通道取列表里最新的（含 prerelease）。"""
-    if not beta:
-        return _github_get(UPDATE_LATEST_API)
+    urls = update_urls()
 
-    items = _github_get(UPDATE_LIST_API)
+    if not beta:
+        return _github_get(urls["latest"])
+
+    items = _github_get(urls["list"])
     if not isinstance(items, list) or not items:
-        raise ValueError("no releases")
+        raise ValueError("该仓库还没有发布任何版本")
     # 列表本身就是按发布时间倒序，取第一个非草稿
     for item in items:
         if not item.get("draft"):
@@ -1745,14 +1765,17 @@ def update_fetch(beta=None):
     if beta is None:
         beta = bool((config.get("update", {}) or {}).get("beta", False))
 
+    urls = update_urls()
+
     result = {
         "current": APP_VERSION,
+        "repo": urls["repo"],
         "beta": bool(beta),
         "channel": "beta" if beta else "stable",
         "latest": None,
         "has_update": False,
         "prerelease": False,
-        "url": UPDATE_PAGE,
+        "url": urls["page"],
         "name": None,
         "published": None,
         "notes": None,
@@ -1764,7 +1787,7 @@ def update_fetch(beta=None):
         latest = (data.get("tag_name") or data.get("name") or "").strip().lstrip("vV")
         result.update({
             "latest": latest,
-            "url": data.get("html_url") or UPDATE_PAGE,
+            "url": data.get("html_url") or urls["page"],
             "name": data.get("name") or latest,
             "prerelease": bool(data.get("prerelease")),
             "published": (data.get("published_at") or "")[:10],
@@ -1772,9 +1795,32 @@ def update_fetch(beta=None):
         })
         result["has_update"] = _version_tuple(latest) > _version_tuple(APP_VERSION)
     except Exception as exc:
-        result["error"] = f"连不上更新服务器（{exc.__class__.__name__}）"
+        result["error"] = _update_error_text(exc, urls["repo"])
 
     return result
+
+
+def _update_error_text(exc, repo):
+    """把 GitHub 的各种错误翻译成人能看懂的话。"""
+    code = getattr(exc, "code", None)
+    if code == 404:
+        return f"仓库 {repo} 还没有发布版本（或者仓库地址不对）"
+    if code == 403:
+        return "GitHub 访问被限制（接口调用过于频繁），稍后再试"
+    if code in (500, 502, 503):
+        return "GitHub 服务器暂时不可用，稍后再试"
+
+    # 我们自己抛的中文提示（例如"该仓库还没有发布任何版本"）直接透出
+    if isinstance(exc, ValueError) and str(exc):
+        return str(exc)
+
+    text = str(exc)
+    if "timed out" in text or "timeout" in text.lower():
+        return "连接 GitHub 超时，检查网络后重试"
+    if "Name or service not known" in text or "getaddrinfo" in text:
+        return "无法解析 GitHub 域名，检查网络后重试"
+
+    return f"检查更新失败（{exc.__class__.__name__}）"
 
 
 def update_cache(payload):
@@ -1786,7 +1832,8 @@ def update_cache(payload):
         "has_update": bool(payload.get("has_update")),
         "prerelease": bool(payload.get("prerelease")),
         "name": payload.get("name") or "",
-        "url": payload.get("url") or UPDATE_PAGE,
+        "url": payload.get("url") or update_urls()["page"],
+        "repo": payload.get("repo") or update_repo(),
         "published": payload.get("published") or "",
         "notes": payload.get("notes") or "",
         "checked_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1919,12 +1966,13 @@ def update_status(request: Request):
     upd = config.get("update", {}) or {}
     return {
         "current": APP_VERSION,
+        "repo": update_repo(),
         "beta": bool(upd.get("beta", False)),
         "latest": upd.get("latest") or "",
         "has_update": bool(upd.get("has_update")),
         "prerelease": bool(upd.get("prerelease")),
         "name": upd.get("name") or "",
-        "url": upd.get("url") or UPDATE_PAGE,
+        "url": upd.get("url") or update_urls()["page"],
         "published": upd.get("published") or "",
         "notes": upd.get("notes") or "",
         "checked_at": upd.get("checked_at") or "",
@@ -2377,6 +2425,105 @@ async def logout(request: Request):
     response.delete_cookie(SESSION_COOKIE)
     return response
 
+AUDIT_LABELS = {
+    "login": "登录",
+    "login_failed": "登录失败",
+    "logout": "退出",
+    "groups_save": "保存分组",
+    "groups_auto": "自动分组",
+    "students_bulk_delete": "批量删除学生",
+    "bulk_delete_failed": "删除被拒",
+    "import_legacy": "导入旧数据",
+    "integrity_accept": "重新签名",
+    "verify": "核销积分",
+    "verify_failed": "核销失败",
+    "generate": "生成积分",
+    "settings_save": "保存设置",
+    "device_add": "添加设备",
+    "device_delete": "删除设备",
+    "display": "投屏",
+    "integrity": "完整性告警",
+}
+
+
+def _dashboard_stats():
+    """控制台要用的统计数字。"""
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    stats = {
+        "students": 0,
+        "boys": 0,
+        "girls": 0,
+        "groups": 0,
+        "ungrouped": 0,
+        "cards_total": 0,
+        "cards_used": 0,
+        "cards_unused": 0,
+        "cards_today": 0,
+    }
+
+    db = connect_db()
+    try:
+        rows = db.execute("SELECT gender, IFNULL(group_id, 0) AS gid FROM students").fetchall()
+        stats["students"] = len(rows)
+        for r in rows:
+            gender = (r["gender"] or "").strip()
+            if gender == "男":
+                stats["boys"] += 1
+            elif gender == "女":
+                stats["girls"] += 1
+            if not r["gid"]:
+                stats["ungrouped"] += 1
+
+        stats["groups"] = db.execute("SELECT COUNT(*) FROM student_groups").fetchone()[0] or 0
+
+        rows = db.execute("SELECT status, verified_at FROM scores").fetchall()
+        stats["cards_total"] = len(rows)
+        for r in rows:
+            status = (r["status"] or "").strip()
+            used = status in ("已作废", "已核销") or bool(r["verified_at"])
+            if used:
+                stats["cards_used"] += 1
+                if (r["verified_at"] or "").startswith(today):
+                    stats["cards_today"] += 1
+        stats["cards_unused"] = stats["cards_total"] - stats["cards_used"]
+    finally:
+        db.close()
+
+    return stats
+
+
+@app.get("/api/dashboard/devices")
+def dashboard_devices(request: Request):
+    """控制台设备面板：在线状态、摄像头/麦克风、视频帧率。"""
+    _require_login(request)
+
+    out = []
+    for dev in devices.list_devices():
+        state = devices.device_state(dev)
+        agent = state.get("agent") or {}
+        video = state.get("video") or {}
+
+        out.append({
+            "id": state["id"],
+            "name": state["name"],
+            "room": state["room"],
+            "host": state["host"],
+            "port": state["port"],
+            "reachable": state["reachable"],
+            "error": state["error"],
+            "camera": agent.get("cameraEnabled"),
+            "mic": agent.get("micEnabled"),
+            "needSetup": agent.get("needSetup"),
+            "version": agent.get("version"),
+            "fps": video.get("fps", 0),
+            "frames": video.get("frames", 0),
+        })
+
+    online = len([d for d in out if d["reachable"]])
+    return JSONResponse({"ok": True, "online": online, "total": len(out), "devices": out})
+
+
 # 首页
 @app.get("/index", response_class=HTMLResponse)
 async def index(request: Request):
@@ -2384,8 +2531,33 @@ async def index(request: Request):
     if not user:
         return RedirectResponse(url="/login")
     config = read_config()
-    system_name = config["system"]["name"]
-    return render(request, "index.html", {"system_name": system_name})
+
+    stats = _dashboard_stats()
+    stats["device_total"] = len(devices.list_devices())
+
+    audit_rows = []
+    try:
+        for line in reversed(integrity.audit_tail(30)):
+            parts = line.split("\t")
+            if len(parts) < 2:
+                continue
+            audit_rows.append({
+                "time": parts[0],
+                "event": parts[1],
+                "label": AUDIT_LABELS.get(parts[1], parts[1]),
+                "ip": parts[2] if len(parts) > 2 else "-",
+                "detail": parts[3] if len(parts) > 3 else "",
+            })
+            if len(audit_rows) >= 8:
+                break
+    except Exception:
+        audit_rows = []
+
+    return render(request, "index.html", {
+        "system_name": config["system"]["name"],
+        "stats": stats,
+        "audit_rows": audit_rows,
+    })
 
 # 班级监控页面
 @app.get("/monitor", response_class=HTMLResponse)
@@ -2721,8 +2893,8 @@ async def device_action(device_id: str, request: Request, rate: int = Form(0),
 
     try:
         if action == "speak":
-            res = devices.agent_request(dev, "POST", "/api/speak",
-                                        {"text": text, "rate": max(-10, min(10, rate))})
+            res = devices.agent_request(dev, "POST", "/api/announce",
+                                        {"text": text, "rate": max(-10, min(10, rate))}, timeout=8)
         elif action == "speak_stop":
             res = devices.agent_request(dev, "POST", "/api/speak/stop", {})
         elif action == "exec":
@@ -3953,34 +4125,37 @@ def students_list_json(request: Request, q: str = ""):
 def audit_page(request: Request):
     """操作日志：谁在什么时候做了敏感操作。"""
     _require_login(request)
-    lines = integrity.audit_tail(200)
+    config = read_config()
+
+    warn_events = {"integrity", "bulk_delete_failed", "students_bulk_delete"}
+    bad_events = {"login_failed", "verify_failed"}
+
     rows = []
-    for ln in reversed(lines):
-        parts = ln.split("	")
+    for ln in reversed(integrity.audit_tail(300)):
+        parts = ln.split("\t")
         while len(parts) < 4:
             parts.append("")
-        rows.append({"time": parts[0], "event": parts[1], "ip": parts[2], "detail": parts[3]})
 
-    body = "".join(
-        f"<tr><td>{r['time']}</td><td>{r['event']}</td><td>{r['ip']}</td><td>{r['detail']}</td></tr>"
-        for r in rows) or "<tr><td colspan='4' style='text-align:center;color:#94a3b8'>暂无记录</td></tr>"
+        event = parts[1]
+        tone = ""
+        if event in bad_events:
+            tone = "is-bad"
+        elif event in warn_events:
+            tone = "is-warn"
 
-    html = f"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
-<title>操作日志 · 班级管理系统</title>
-<link rel="stylesheet" href="/static/css/app.css?v={asset_version()}"></head>
-<body><div class="app-shell">
-<main class="page">
-  <div class="page-head"><h1 class="page-title">操作日志</h1>
-  <p class="page-desc">登录、改密码、导入、配置被外部修改等事件都会记在这里（data/audit.log）</p></div>
-  <section class="card">
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left;color:#64748b">
-        <th style="padding:8px 6px">时间</th><th>事件</th><th>来源 IP</th><th>说明</th></tr></thead>
-      <tbody>{body}</tbody>
-    </table>
-  </section>
-</main></div></body></html>"""
-    return HTMLResponse(html)
+        rows.append({
+            "time": parts[0],
+            "event": event,
+            "label": AUDIT_LABELS.get(event, event),
+            "ip": parts[2] or "-",
+            "detail": parts[3],
+            "tone": tone,
+        })
+
+    return render(request, "audit.html", {
+        "system_name": config["system"]["name"],
+        "rows": rows,
+    })
 
 
 @app.post("/integrity_reaccept")

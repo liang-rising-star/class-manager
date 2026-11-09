@@ -18,6 +18,7 @@ namespace ClassManager.KioskAgent
         private static Type _voiceType;
         private static volatile bool _busy;
         private static volatile bool _stopRequested;
+        private static volatile bool _statusWarned;
         private static string _lastError = "";
 
         /// <summary>播报前提示音</summary>
@@ -31,6 +32,9 @@ namespace ClassManager.KioskAgent
 
         /// <summary>播报音量 0-100；-1 表示不自动调整系统音量</summary>
         public static int Volume { get; set; } = 70;
+
+        /// <summary>一段播报结束时触发：(文本, 是否被手动停止)</summary>
+        public static event Action<string, bool> Finished;
 
         public static int PendingCount => Queue.Count;
         public static bool IsSpeaking => _busy;
@@ -127,7 +131,7 @@ namespace ClassManager.KioskAgent
                         // 1 = SVSFlagsAsync：立即返回，才能在播报过程中打断
                         _voiceType.InvokeMember("Speak", BindingFlags.InvokeMethod, null, _voice, new object[] { text, 1 });
                         spoke = true;
-                        WaitUntilDoneOrStopped();
+                        WaitUntilDoneOrStopped(text);
                     }
 
                     if (ChimeAfter && !_stopRequested) ChimePlayer.PlayAfter(ChimeId);
@@ -141,19 +145,28 @@ namespace ClassManager.KioskAgent
                 {
                     if (Volume >= 0) SystemVolume.Restore(savedVolume, Volume);
                     _busy = false;
+
+                    bool stopped = _stopRequested;
+                    try { Finished?.Invoke(text, stopped); } catch { }
                 }
             }
         }
 
         /// <summary>
-        /// 等这一段念完；期间如果收到停止请求，就在**播报线程**里打断
-        /// （SAPI 的 COM 对象只能在创建它的线程上调用，所以不能从 HTTP 线程直接停）。
+        /// 等这一段念完。
+        /// 首选 SAPI 的 WaitUntilDone(短超时)：它一读完就返回，靠耗时判断是否结束；
+        /// 读不到就用「按字数估算」兜底，保证一定能退出。
         /// </summary>
-        private static void WaitUntilDoneOrStopped()
+        private static void WaitUntilDoneOrStopped(string text)
         {
-            const int SRSEDone = 2;
+            int capMs = Math.Max(3000, (int)((text ?? "").Length * 420) + 4000);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
 
-            while (true)
+            // 刚发起朗读的一小段时间里 SAPI 还没真正开始，WaitUntilDone 会立刻返回，
+            // 这里先跳过判定，避免"刚开始就以为读完了"。
+            int earlyHits = 0;
+
+            while (sw.ElapsedMilliseconds < capMs)
             {
                 if (_stopRequested)
                 {
@@ -161,19 +174,52 @@ namespace ClassManager.KioskAgent
                     return;
                 }
 
-                try
+                if (sw.ElapsedMilliseconds < 600)
                 {
-                    var status = _voiceType.InvokeMember("Status", BindingFlags.GetProperty, null, _voice, null);
-                    var state = status.GetType()
-                        .InvokeMember("RunningState", BindingFlags.GetField, null, status, null);
-                    if (Convert.ToInt32(state) == SRSEDone) return;
-                }
-                catch
-                {
-                    // 拿不到状态就按固定节奏轮询，避免死循环
+                    Thread.Sleep(60);
+                    continue;
                 }
 
-                Thread.Sleep(60);
+                if (WaitSlice(150))
+                {
+                    // 连续两次提前返回才算真的读完
+                    if (++earlyHits >= 2) return;
+                }
+                else
+                {
+                    earlyHits = 0;
+                }
+            }
+
+            Log.Write("播报超时兜底结束");
+            PurgeOnWorker();
+        }
+
+        /// <summary>
+        /// 阻塞最多 sliceMs；如果提前返回，说明这段念完了。
+        /// WaitUntilDone 不可用时退化成纯等待，由外层按字数兜底。
+        /// </summary>
+        private static bool WaitSlice(int sliceMs)
+        {
+            try
+            {
+                var t = System.Diagnostics.Stopwatch.StartNew();
+                _voiceType.InvokeMember("WaitUntilDone", BindingFlags.InvokeMethod, null, _voice,
+                    new object[] { sliceMs });
+
+                // 明显早于超时就返回 = 朗读已结束
+                return t.ElapsedMilliseconds < sliceMs * 0.7;
+            }
+            catch
+            {
+                if (!_statusWarned)
+                {
+                    _statusWarned = true;
+                    Log.Write("SAPI WaitUntilDone 不可用，改用按字数估算播报时长");
+                }
+
+                Thread.Sleep(sliceMs);
+                return false;
             }
         }
 

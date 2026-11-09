@@ -21,6 +21,12 @@ namespace ClassManager.KioskAgent
         /// <summary>投屏窗口（可为空）</summary>
         private DisplayForm _displayForm;
 
+        /// <summary>叫号全屏窗口（可为空）</summary>
+        private AnnouncementForm _announceForm;
+
+        /// <summary>叫号兜底计时器：语音卡住也会自动收起</summary>
+        private System.Windows.Forms.Timer _announceGuard;
+
         /// <summary>无界面控件，仅用来把 HTTP 线程的调用切回 UI 线程</summary>
         private readonly Control _marshaller = new Control();
 
@@ -35,6 +41,25 @@ namespace ClassManager.KioskAgent
             var marshallerHandle = _marshaller.Handle;
             GC.KeepAlive(marshallerHandle);
 
+            _server.Announce.RequestShow = (show, text) =>
+            {
+                try { _marshaller.BeginInvoke(new Action(() => ApplyAnnouncement(show, text))); }
+                catch (Exception ex) { Log.Write("叫号切换失败: " + ex.Message); }
+            };
+
+            // 一段播报结束（正常读完或被停止）→ 收起全屏
+            SpeakService.Finished += (text, stopped) =>
+            {
+                try
+                {
+                    _marshaller.BeginInvoke(new Action(() =>
+                    {
+                        if (_server.Announce.Active) _server.Announce.Hide();
+                    }));
+                }
+                catch { }
+            };
+
             _server.Display.RequestShow = (show, stateJson) =>
             {
                 try { _marshaller.BeginInvoke(new Action(() => ApplyDisplay(show, stateJson))); }
@@ -44,6 +69,66 @@ namespace ClassManager.KioskAgent
             _tray = BuildTrayIcon();
 
             _ = StartServerAsync();
+        }
+
+        /// <summary>叫号全屏：显示文字 → 语音播完 → 退场动画 → 消失（UI 线程）。</summary>
+        private void ApplyAnnouncement(bool show, string text)
+        {
+            try
+            {
+                if (show)
+                {
+                    if (_announceForm == null || _announceForm.IsDisposed)
+                    {
+                        _announceForm = new AnnouncementForm(_server.LocalUrl);
+                        _announceForm.Closed += () =>
+                        {
+                            _announceForm = null;
+                            _server.Announce.MarkClosed();
+                        };
+
+                        // Esc：收起全屏并停止播报
+                        _announceForm.Dismissed += () =>
+                        {
+                            SpeakService.StopAll();
+                            _server.Announce.Hide();
+                        };
+                        _announceForm.Show();
+                        Log.Write("叫号全屏已打开");
+                    }
+
+                    if (!_announceForm.Visible) _announceForm.Show();   // 复用时重新显示
+                    _announceForm.ForceTopMost();
+                    _announceForm.ShowText(text);   // 页面没就绪时会先缓存，加载完自动播放
+
+                    // 兜底：40 秒后无论语音是否结束都收起
+                    if (_announceGuard == null)
+                    {
+                        _announceGuard = new System.Windows.Forms.Timer { Interval = 90000 };
+                        _announceGuard.Tick += (s, e) =>
+                        {
+                            _announceGuard.Stop();
+                            if (_server.Announce.Active) _server.Announce.Hide();
+                        };
+                    }
+                    _announceGuard.Stop();
+                    _announceGuard.Start();
+                }
+                else
+                {
+                    if (_announceGuard != null) _announceGuard.Stop();
+
+                    if (_announceForm != null && !_announceForm.IsDisposed)
+                    {
+                        Log.Write("叫号全屏：退场");
+                        _announceForm.HideAnimated();   // 只隐藏，下次复用
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Write("叫号全屏异常: " + ex.Message);
+            }
         }
 
         /// <summary>按需打开或关闭全屏投屏窗体（必须在 UI 线程调用）。</summary>

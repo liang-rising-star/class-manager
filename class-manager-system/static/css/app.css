@@ -506,6 +506,12 @@ button.side-link.is-new:hover {
     width: min(620px, calc(100vw - 32px));
 }
 
+.update-repo {
+    font-size: 12px; color: var(--text-faint);
+    font-family: ui-monospace, Consolas, monospace;
+    margin: 8px 0 2px; word-break: break-all;
+}
+
 .update-versions {
     display: flex;
     align-items: center;

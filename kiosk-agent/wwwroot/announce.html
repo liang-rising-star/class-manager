@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>叫号</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; }
+        html, body {
+            margin: 0; height: 100%; overflow: hidden;
+            background: #070c16;
+            color: #ffffff;
+            font-family: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+        }
+
+        /* 蓝色圆盘：从中心撑满整块屏幕 */
+        .fill {
+            position: fixed; left: 50%; top: 50%;
+            width: 170vmax; height: 170vmax;
+            margin: -85vmax 0 0 -85vmax;
+            border-radius: 50%;
+            background: radial-gradient(circle at 50% 42%, #3b82f6 0%, #2563eb 38%, #1d4ed8 72%, #1e40af 100%);
+            transform: scale(0);
+            will-change: transform;
+            box-shadow: 0 0 14vmax rgba(37, 99, 235, .5);
+        }
+        body.show .fill {
+            animation: fillIn .6s cubic-bezier(.22,.9,.28,1) forwards;
+        }
+        @keyframes fillIn {
+            from { transform: scale(0); }
+            to   { transform: scale(1); }
+        }
+
+        /* 撑满后荡开的涟漪 */
+        .ripple {
+            position: fixed; left: 50%; top: 50%;
+            width: 44vmax; height: 44vmax; margin: -22vmax 0 0 -22vmax;
+            border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35);
+            opacity: 0;
+        }
+        body.show .ripple { animation: ripple 2.4s .7s ease-out infinite; }
+        body.show .ripple:nth-of-type(2) { animation-delay: 1.6s; }
+        @keyframes ripple {
+            0%   { transform: scale(.32); opacity: 0; }
+            22%  { opacity: .5; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        .stage {
+            position: relative; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            padding: 8vh 8vw; text-align: center;
+        }
+
+        .content { opacity: 0; }
+        body.show .content { animation: contentIn .55s .55s cubic-bezier(.22,.9,.3,1) forwards; }
+        @keyframes contentIn {
+            from { opacity: 0; transform: translateY(1.8vh); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .badge {
+            display: inline-flex; align-items: center; gap: .8vw;
+            padding: .7vh 1.7vw; border-radius: 999px;
+            background: rgba(255, 255, 255, .16);
+            color: #eaf3ff; font-size: 1.9vh; font-weight: 600;
+            letter-spacing: .12em; margin-bottom: 3.4vh;
+        }
+        .badge .dot {
+            width: .9vh; height: .9vh; border-radius: 50%; background: #ffffff;
+            animation: dot 1.4s ease-in-out infinite;
+        }
+        @keyframes dot {
+            0%, 100% { opacity: .35; transform: scale(.85); }
+            50%      { opacity: 1;   transform: scale(1.15); }
+        }
+
+        .text {
+            font-size: 7.2vh; line-height: 1.38; font-weight: 800;
+            letter-spacing: .02em; max-width: 86vw; word-break: break-word;
+            text-shadow: 0 .8vh 3vh rgba(15, 23, 42, .35);
+        }
+        .text.is-long { font-size: 5.4vh; }
+        .text.is-xl   { font-size: 4.2vh; }
+
+        .hint {
+            margin-top: 4.4vh; font-size: 1.8vh; letter-spacing: .16em;
+            color: rgba(255, 255, 255, .62);
+        }
+
+        /* ---------- 退场 ---------- */
+        body.leaving .content { animation: contentOut .26s ease-in forwards; }
+        @keyframes contentOut {
+            from { opacity: 1; transform: translateY(0); }
+            to   { opacity: 0; transform: translateY(-1.2vh); }
+        }
+
+        body.leaving .fill { animation: fillOut .62s .08s cubic-bezier(.5,0,.65,.2) forwards; }
+        @keyframes fillOut {
+            from { transform: scale(1); opacity: 1; }
+            to   { transform: scale(0); opacity: .9; }
+        }
+
+        body.leaving .ripple { animation: none; opacity: 0; }
+        body.leaving { animation: pageOut .26s .46s ease-in forwards; }
+        @keyframes pageOut { to { opacity: 0; } }
+    </style>
+</head>
+<body>
+    <div class="fill"></div>
+    <div class="ripple"></div>
+    <div class="ripple"></div>
+
+    <div class="stage">
+        <div class="content">
+            <div class="badge"><span class="dot"></span> 语音播报</div>
+            <div class="text" id="text"></div>
+            <div class="hint">请留意通知内容</div>
+        </div>
+    </div>
+
+<script>
+(function () {
+    var textEl = document.getElementById('text');
+
+    function applyText(raw) {
+        textEl.classList.remove('is-long', 'is-xl');
+        textEl.textContent = raw || '…';
+
+        if ((raw || '').length > 26) textEl.classList.add('is-long');
+        if ((raw || '').length > 46) textEl.classList.add('is-xl');
+    }
+
+    /// 宿主调用：显示一段文字并重播入场动画
+    window.__show = function (raw) {
+        document.body.classList.remove('leaving', 'show');
+        applyText(raw);
+
+        // 强制重排，让 CSS 动画重新开始
+        void document.body.offsetWidth;
+
+        document.body.classList.add('show');
+    };
+
+    /// 宿主调用：播放退场动画
+    window.__exit = function () {
+        document.body.classList.add('leaving');
+    };
+
+    /// 宿主调用：窗口收起后复位，下一次进来是干净的黑底
+    window.__reset = function () {
+        document.body.classList.remove('show', 'leaving');
+        textEl.textContent = '';
+        textEl.classList.remove('is-long', 'is-xl');
+        void document.body.offsetWidth;
+    };
+
+    // 页面加载完先报个到，宿主可以立刻推文字
+    try { window.chrome && window.chrome.webview && window.chrome.webview.postMessage('ready'); } catch (e) { }
+})();
+</script>
+</body>
+</html>

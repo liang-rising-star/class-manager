@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/logo.ico" type="image/x-icon">
+    <title>操作日志 · {{ system_name }}</title>
+    <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+    <style>
+        .audit-toolbar {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;
+        }
+        .audit-toolbar .spacer { flex: 1; }
+        .audit-toolbar input[type="search"] {
+            width: 230px; padding: 8px 12px; border: 1px solid var(--border);
+            border-radius: 10px; background: #fbfcfe; font: inherit; font-size: 13.5px; outline: none;
+        }
+        .audit-toolbar input[type="search"]:focus { border-color: var(--primary); background: #fff; }
+        .audit-toolbar .count { font-size: 12.5px; color: var(--text-muted); }
+
+        .audit-table-wrap {
+            max-height: calc(100vh - 300px); min-height: 220px; overflow: auto;
+            border: 1px solid var(--border); border-radius: 12px;
+        }
+        .audit-table {
+            width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px;
+        }
+        .audit-table thead th {
+            position: sticky; top: 0; z-index: 1;
+            background: #f6f8fb; color: var(--text-muted);
+            font-weight: 600; font-size: 12.5px; text-align: left;
+            padding: 10px 14px; border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .audit-table tbody td {
+            padding: 9px 14px; border-bottom: 1px solid #f1f4f9;
+            vertical-align: top;
+        }
+        .audit-table tbody tr:last-child td { border-bottom: 0; }
+        .audit-table tbody tr:hover { background: #fafcff; }
+
+        .cell-time {
+            color: var(--text-muted); white-space: nowrap;
+            font-variant-numeric: tabular-nums; font-size: 12.5px;
+        }
+        .cell-event {
+            display: inline-block; padding: 1px 9px; border-radius: 999px;
+            font-size: 12px; background: #eef4ff; color: #1d4ed8; white-space: nowrap;
+        }
+        .cell-event.is-warn { background: #fef3c7; color: #b45309; }
+        .cell-event.is-bad { background: #fee2e2; color: #b91c1c; }
+        .cell-ip { color: var(--text-muted); white-space: nowrap; font-size: 12.5px; }
+        .cell-detail { color: var(--text); word-break: break-word; }
+
+        .audit-empty {
+            text-align: center; color: var(--text-faint); font-size: 13px; padding: 40px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        {% set active_page = 'audit' %}
+        {% include "_sidebar.html" %}
+
+    <main class="page">
+        <div class="page-head">
+            <h1 class="page-title">操作日志</h1>
+            <p class="page-desc">登录、改密码、导入、配置被外部修改等事件都会记在这里（data/audit.log）</p>
+        </div>
+
+        <section class="card">
+            <div class="audit-toolbar">
+                <a draggable="false" class="btn btn-ghost btn-sm" href="/index">← 返回控制台</a>
+                <input type="search" id="q" placeholder="搜索事件 / IP / 说明">
+                <span class="spacer"></span>
+                <span class="count" id="count">共 {{ rows|length }} 条</span>
+            </div>
+
+            <div class="audit-table-wrap">
+                <table class="audit-table">
+                    <thead>
+                        <tr>
+                            <th style="width:150px">时间</th>
+                            <th style="width:120px">事件</th>
+                            <th style="width:130px">来源 IP</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody">
+                        {% for r in rows %}
+                        <tr data-text="{{ (r.time ~ ' ' ~ r.label ~ ' ' ~ r.ip ~ ' ' ~ r.detail)|lower }}">
+                            <td class="cell-time">{{ r.time }}</td>
+                            <td>
+                                <span class="cell-event {{ r.tone }}">{{ r.label }}</span>
+                            </td>
+                            <td class="cell-ip">{{ r.ip }}</td>
+                            <td class="cell-detail">{{ r.detail or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                {% if not rows %}
+                <div class="audit-empty">还没有操作记录</div>
+                {% endif %}
+                <div class="audit-empty" id="noMatch" style="display:none">没有匹配的记录</div>
+            </div>
+        </section>
+    </main>
+    </div>
+
+<script>
+(function () {
+    var q = document.getElementById('q');
+    var tbody = document.getElementById('tbody');
+    var count = document.getElementById('count');
+    var noMatch = document.getElementById('noMatch');
+    var total = tbody.querySelectorAll('tr').length;
+
+    q.addEventListener('input', function () {
+        var kw = q.value.trim().toLowerCase();
+        var shown = 0;
+
+        tbody.querySelectorAll('tr').forEach(function (tr) {
+            var hit = !kw || (tr.dataset.text || '').indexOf(kw) >= 0;
+            tr.style.display = hit ? '' : 'none';
+            if (hit) shown++;
+        });
+
+        count.textContent = kw ? ('匹配 ' + shown + ' 条 / 共 ' + total + ' 条') : ('共 ' + total + ' 条');
+        noMatch.style.display = (kw && !shown) ? '' : 'none';
+    });
+})();
+</script>
+</body>
+</html>

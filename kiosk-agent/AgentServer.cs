@@ -39,6 +39,7 @@ namespace ClassManager.KioskAgent
         public AudioPlaybackService Talkback { get; } = new AudioPlaybackService();
         public ScreenService Screen { get; } = new ScreenService();
         public DisplayService Display { get; } = new DisplayService();
+        public AnnounceService Announce { get; } = new AnnounceService();
 
         /// <summary>配置变更后通知托盘等刷新</summary>
         public event Action ConfigChanged;
@@ -636,6 +637,29 @@ namespace ClassManager.KioskAgent
                     return Json(ctx, new { ok = false, error = SpeakService.LastError });
 
                 return Json(ctx, new { ok = true, queued = true, pending = SpeakService.PendingCount });
+            });
+
+            // ---------- 叫号：全屏动画 + 语音播报 ----------
+            app.MapPost("/api/announce", async (HttpContext ctx) =>
+            {
+                var body = await ReadJson(ctx);
+
+                string text = "";
+                if (body.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String)
+                    text = (t.GetString() ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(text))
+                    return Json(ctx, new { ok = false, error = "播报内容为空" });
+
+                int rate = 0;
+                if (body.TryGetProperty("rate", out var r))
+                    rate = ClampInt(r, -10, 10, 0);
+
+                Announce.Show(text);
+                bool queued = SpeakService.Enqueue(text, rate);
+
+                Log.Write("收到叫号请求：" + (text.Length > 20 ? text.Substring(0, 20) + "…" : text));
+                return Json(ctx, new { ok = queued, queued, error = queued ? "" : SpeakService.LastError });
             });
 
             app.MapPost("/api/speak/stop", (HttpContext ctx) =>

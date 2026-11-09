@@ -23,30 +23,66 @@
         .clock { font-size: 2.2vh; color: #8fa3c4; font-variant-numeric: tabular-nums; }
 
         .board {
-            flex: 1; display: grid; gap: 1.6vh;
-            grid-auto-rows: minmax(20vh, auto);
-            align-content: start;
-            min-height: 0;
+            position: relative; flex: 1; min-height: 0;
+            margin-top: .6vh;
         }
         .slot {
+            position: absolute; box-sizing: border-box;
             border-radius: 18px;
             background: rgba(255, 255, 255, .045);
             border: 1px solid rgba(255, 255, 255, .08);
-            padding: 1.6vh 1.4vw;
+            padding: 1vh .8vw;
             display: flex; flex-direction: column; min-height: 0;
             overflow: hidden;
         }
         .slot.is-empty { border-style: dashed; border-color: rgba(255,255,255,.13); }
+        .slot.is-empty { border-style: dashed; border-color: rgba(255,255,255,.13); }
+
         .slot__head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 1vh; flex: 0 0 auto; }
-        .slot__name { font-size: 2.5vh; font-weight: 700; color: #7dd3fc; }
-        .slot__score { font-size: 1.7vh; color: #94a3b8; }
-        .slot__seat { font-size: 1.5vh; color: #64748b; margin-left: auto; }
-        .slot__members {
-            display: flex; flex-wrap: wrap; gap: .7vh .8vw;
-            font-size: 2.1vh; line-height: 1.25; overflow: hidden;
+        .slot__name { font-size: 2.1vh; font-weight: 700; color: #7dd3fc; }
+        .slot__score {
+            font-size: 2vh; font-weight: 700; color: #7dd3fc;
+            margin: .2vh 0 .5vh; flex: 0 0 auto;
         }
-        .m { padding: .3vh .7vw; border-radius: 999px; background: rgba(255,255,255,.06); }
-        .m .g { font-size: 1.5vh; color: #94a3b8; margin-left: 4px; }
+        .slot__seat { font-size: 1.3vh; color: #64748b; margin-left: auto; }
+        .slot__members {
+            display: flex; flex-wrap: wrap; gap: .5vh .5vw;
+            font-size: 1.7vh; line-height: 1.25; overflow: hidden;
+        }
+        .m { padding: .2vh .5vw; border-radius: 999px; background: rgba(255,255,255,.06); }
+        .m .g { font-size: 1.2vh; color: #94a3b8; margin-left: 3px; }
+
+        /* 排行榜 */
+        .rank-board {
+            flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 1.1vh;
+            margin-top: 1vh;
+        }
+        .rank-row {
+            display: flex; align-items: center; gap: 1.2vw;
+            padding: 1.2vh 1.4vw; border-radius: 16px;
+            background: rgba(255, 255, 255, .045);
+            border: 1px solid rgba(255, 255, 255, .08);
+        }
+        .rank-row.is-first {
+            background: rgba(250, 204, 21, .12);
+            border-color: rgba(250, 204, 21, .35);
+        }
+        .rank-row__no {
+            width: 4.2vh; height: 4.2vh; flex: 0 0 auto;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 2.2vh; font-weight: 700;
+            background: rgba(255,255,255,.08); color: #cbd5e1;
+        }
+        .rank-row.is-first .rank-row__no { background: #facc15; color: #1f2937; }
+        .rank-row__name { font-size: 2.6vh; font-weight: 700; color: #7dd3fc; min-width: 12vw; }
+        .rank-row__members {
+            flex: 1; font-size: 1.9vh; color: #94a3b8;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .rank-row__score {
+            font-size: 3vh; font-weight: 700; color: #e8eefc; font-variant-numeric: tabular-nums;
+        }
+        .rank-row__score span { font-size: 1.6vh; color: #94a3b8; margin-left: .3vw; }
 
         .idle {
             flex: 1; display: flex; align-items: center; justify-content: center;
@@ -73,6 +109,8 @@
     var subEl = document.getElementById('sub');
     var clockEl = document.getElementById('clock');
     var lastJson = '';
+    var lastState = {};
+    var state_mode = '';
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -89,22 +127,56 @@
         titleEl.textContent = state.title || '小组换座';
         subEl.textContent = state.subtitle || '';
 
-        var slots = state.slots || [];
-        if (!slots.length) {
-            board.innerHTML = '<div class="idle">等待教师端投屏…<small>在「小组换座」页点「投屏到一体机」</small></div>';
-            board.style.gridTemplateColumns = '1fr';
+        if (state.mode === 'rank') {
+            renderRank(state);
             return;
         }
 
-        var want = state.columns || 3;
-        var cols = Math.max(1, Math.min(want, slots.length));
-        board.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+        renderSeats(state);
+    }
+
+    function renderRank(state) {
+        var items = state.items || [];
+
+        if (!items.length) {
+            board.innerHTML = '<div class="idle">还没有小组</div>';
+            return;
+        }
+
+        var html = '<div class="rank-board">';
+        items.forEach(function (it, i) {
+            var members = (it.members || []).map(function (m) {
+                return typeof m === 'string' ? m : (m.name || '');
+            }).join('、');
+
+            html += '<div class="rank-row' + (i === 0 ? ' is-first' : '') + '">' +
+                '<div class="rank-row__no">' + (it.rank || i + 1) + '</div>' +
+                '<div class="rank-row__name">' + esc(it.name) + '</div>' +
+                '<div class="rank-row__members">' + esc(members) + '</div>' +
+                '<div class="rank-row__score">' +
+                    (it.score !== '' && it.score !== null && it.score !== undefined
+                        ? esc(it.score) + '<span>分</span>' : '<span>未打分</span>') +
+                '</div>' +
+            '</div>';
+        });
+        html += '</div>';
+
+        board.innerHTML = html;
+    }
+
+    function renderSeats(state) {
+        var slots = state.slots || [];
+
+        if (!slots.length) {
+            board.innerHTML = '<div class="idle">等待教师端投屏…<small>在「小组换座」页点「展示座位」</small></div>';
+            return;
+        }
 
         board.innerHTML = slots.map(function (s, i) {
-            if (!s || !s.name) {
-                return '<div class="slot is-empty"><div class="slot__head">' +
-                    '<div class="slot__name" style="color:#475569">空位</div>' +
-                    '<div class="slot__seat">' + (s && s.seat ? esc(s.seat) : '') + '</div></div></div>';
+            if (!s.name) {
+                return '<div class="slot is-empty" data-i="' + i + '">' +
+                    '<div class="slot__head"><div class="slot__name" style="color:#475569">空位</div>' +
+                    '<div class="slot__seat">' + esc(s.seat || '') + '</div></div></div>';
             }
 
             var members = (s.members || []).map(function (m) {
@@ -113,26 +185,65 @@
                 return '<span class="m">' + esc(name) + (g ? '<span class="g">' + esc(g) + '</span>' : '') + '</span>';
             }).join('');
 
-            return '<div class="slot">' +
+            return '<div class="slot" data-i="' + i + '">' +
                 '<div class="slot__head">' +
                     '<div class="slot__name">' + esc(s.name) + '</div>' +
-                    (s.score !== undefined && s.score !== null && s.score !== ''
-                        ? '<div class="slot__score">' + esc(s.score) + ' 分</div>' : '') +
                     '<div class="slot__seat">' + esc(s.seat || '') + '</div>' +
+                '</div>' +
+                '<div class="slot__score">' +
+                    (s.score !== undefined && s.score !== null && s.score !== ''
+                        ? esc(s.score) + ' 分' : '未打分') +
                 '</div>' +
                 '<div class="slot__members">' + (members || '<span class="m">—</span>') + '</div>' +
             '</div>';
         }).join('');
+
+        placeSlots(slots);
     }
 
-    function poll() {
+    /// 按百分比定位，并把方块做成正方形（高度 = 宽度）
+    function placeSlots(slots) {
+        if (state_mode !== 'seats') return;
+        var bw = board.clientWidth;
+        var bh = board.clientHeight;
+        if (!bw || !bh) return;
+
+        var nodes = board.querySelectorAll('.slot');
+
+        for (var i = 0; i < nodes.length; i++) {
+            var s = slots[i] || {};
+            var wpx = bw * (s.w || 14.5) / 100;
+            var hpx = wpx;                       // 正方形
+
+            var left = bw * (s.x || 0) / 100;
+            var top = bh * (s.y || 0) / 100;
+
+            // 别超出边界
+            left = Math.max(0, Math.min(bw - wpx, left));
+            top = Math.max(0, Math.min(bh - hpx, top));
+
+            var el = nodes[i];
+            el.style.left = left + 'px';
+            el.style.top = top + 'px';
+            el.style.width = wpx + 'px';
+            el.style.height = hpx + 'px';
+        }
+    }
+
+    window.addEventListener('resize', function () {
+        if (lastState && lastState.slots) placeSlots(lastState.slots);
+    });
+
+    function poll(force) {
         fetch('/api/display/state?t=' + Date.now(), { cache: 'no-store' })
             .then(function (r) { return r.json(); })
             .then(function (res) {
                 var body = res && res.state ? JSON.stringify(res.state) : '';
-                if (body === lastJson) return;
+                if (body === lastJson && !force) return;
                 lastJson = body;
+                state_mode = (res && res.state && res.state.mode) || '';
                 render((res && res.state) || {});
+                lastState = res && res.state ? res.state : {};
             })
             .catch(function () { });
     }

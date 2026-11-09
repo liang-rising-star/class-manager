@@ -56,3 +56,6 @@ _dump*.txt
 browser-screenshots/
 *.tmp
 _msg*.txt
+_out.txt
+_upd.json
+_o.txt

@@ -6,6 +6,114 @@
     <link rel="icon" href="/logo.ico" type="image/x-icon">
     <title>{{ system_name }}</title>
     <link rel="stylesheet" href="/static/css/app.css?v={{ css_version }}">
+    <style>
+        /* ---------- 概览数字 ---------- */
+        .kpi-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px; margin-bottom: 18px;
+        }
+        .kpi {
+            padding: 14px 16px; border-radius: 14px; background: #fbfcfe;
+            border: 1px solid var(--border);
+        }
+        .kpi__label { font-size: 12.5px; color: var(--text-muted); margin-bottom: 6px; }
+        .kpi__value {
+            font-size: 26px; font-weight: 700; color: var(--text);
+            line-height: 1.1; font-variant-numeric: tabular-nums;
+        }
+        .kpi__value small { font-size: 13px; font-weight: 500; color: var(--text-muted); margin-left: 4px; }
+        .kpi__foot { font-size: 12px; color: var(--text-faint); margin-top: 6px; }
+        .kpi--blue { background: #f2f7ff; border-color: #dbeafe; }
+        .kpi--blue .kpi__value { color: #1d4ed8; }
+        .kpi--green { background: #f2fdf5; border-color: #d9f2e2; }
+        .kpi--green .kpi__value { color: #15803d; }
+        .kpi--amber { background: #fffcf0; border-color: #fdeec2; }
+        .kpi--amber .kpi__value { color: #b45309; }
+
+        /* ---------- 两列布局 ---------- */
+        .dash-cols {
+            display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+            gap: 16px; align-items: stretch;
+        }
+        @media (max-width: 1080px) { .dash-cols { grid-template-columns: 1fr; } }
+
+        .dash-col {
+            display: flex; flex-direction: column; gap: 16px;
+            /* 关键：允许这一列被压矮，行高由左列内容决定，日志区才会内部滚动 */
+            min-height: 0; overflow: hidden;
+        }
+        .dash-col > .card { margin: 0; }
+
+        /* 最近操作：占满剩余高度，内容超出时上下滚动 */
+        .card--grow {
+            flex: 1 1 0; min-height: 120px;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .log-list {
+            flex: 1 1 auto; min-height: 0; overflow-y: auto;
+            padding-right: 4px; margin-right: -4px;
+        }
+        .log-list::-webkit-scrollbar { width: 6px; }
+        .log-list::-webkit-scrollbar-thumb { background: #d5dbe5; border-radius: 3px; }
+        .log-list::-webkit-scrollbar-thumb:hover { background: #c2cad8; }
+
+        .panel-head {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+        }
+        .panel-head h2 { font-size: 15px; margin: 0; font-weight: 650; }
+        .panel-head .spacer { flex: 1; }
+        .panel-head .hint { font-size: 12px; color: var(--text-faint); }
+
+        /* ---------- 设备列表 ---------- */
+        .dev-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px;
+            margin-bottom: 8px; background: #fbfcfe;
+        }
+        .dev-row:last-child { margin-bottom: 0; }
+        .dev-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto;
+            background: #cbd5e1;
+        }
+        .dev-dot.is-on { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.15); }
+        .dev-dot.is-off { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.12); }
+        .dev-main { flex: 1; min-width: 0; }
+        .dev-name { font-size: 13.5px; font-weight: 600; }
+        .dev-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dev-tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+        .tagx {
+            font-size: 11.5px; padding: 2px 8px; border-radius: 999px;
+            background: #eef1f6; color: #64748b; white-space: nowrap;
+        }
+        .tagx.is-on { background: #dcfce7; color: #15803d; }
+        .tagx.is-off { background: #f1f5f9; color: #94a3b8; }
+        .tagx.is-warn { background: #fef3c7; color: #b45309; }
+        .empty-tip { font-size: 13px; color: var(--text-faint); padding: 18px 0; text-align: center; }
+
+        /* ---------- 快捷入口 ---------- */
+        .quick-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .quick {
+            display: block; padding: 12px 14px; border-radius: 12px;
+            border: 1px solid var(--border); background: #fff; text-decoration: none;
+            transition: border-color .15s, box-shadow .15s, transform .15s;
+        }
+        .quick:hover { border-color: var(--primary); box-shadow: 0 3px 12px rgba(37,99,235,.1); }
+        .quick__title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+        .quick__desc { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+        /* ---------- 操作日志 ---------- */
+        .log-row {
+            display: flex; gap: 10px; padding: 7px 0; font-size: 12.5px;
+            border-bottom: 1px dashed var(--border);
+        }
+        .log-row:last-child { border-bottom: 0; }
+        .log-time { color: var(--text-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .log-event {
+            padding: 0 7px; border-radius: 6px; background: #eef4ff; color: #1d4ed8;
+            font-size: 11.5px; line-height: 18px; height: 18px; white-space: nowrap;
+        }
+        .log-detail { flex: 1; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    </style>
 </head>
 <body>
     <div class="app-shell">
@@ -15,38 +123,204 @@
     <main class="page">
         <div class="page-head">
             <h1 class="page-title">控制台</h1>
-            <p class="page-desc">生成防伪积分卡，或扫码核销已发放的积分</p>
+            <p class="page-desc">班级与积分总览，一体机在线状态，最近操作记录</p>
         </div>
 
-        <div class="tile-grid">
-            <a draggable="false" class="tile" href="/generate">
-                <div class="tile-icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <rect x="3" y="4" width="18" height="16" rx="3"></rect>
-                        <path d="M12 9v6M9 12h6"></path>
-                    </svg>
-                </div>
-                <h2>生成积分</h2>
-                <p>批量生成 10 位防伪编号，一键导出 A4 排版 Word，打印裁剪即用。</p>
-                <span class="tile-cta">开始生成 →</span>
-            </a>
+        <!-- 概览 -->
+        <div class="kpi-grid">
+            <div class="kpi kpi--blue">
+                <div class="kpi__label">学生总数</div>
+                <div class="kpi__value">{{ stats.students }}<small>人</small></div>
+                <div class="kpi__foot">男 {{ stats.boys }} · 女 {{ stats.girls }}</div>
+            </div>
 
-            <a draggable="false" class="tile" href="/verify">
-                <div class="tile-icon is-green">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M4 7V5a1 1 0 0 1 1-1h2M20 7V5a1 1 0 0 0-1-1h-2M4 17v2a1 1 0 0 0 1 1h2M20 17v2a1 1 0 0 1-1 1h-2"></path>
-                        <path d="M8 12h8"></path>
-                    </svg>
+            <div class="kpi">
+                <div class="kpi__label">小组</div>
+                <div class="kpi__value">{{ stats.groups }}<small>组</small></div>
+                <div class="kpi__foot">
+                    {% if stats.ungrouped %}未分组 {{ stats.ungrouped }} 人{% else %}学生已全部分组{% endif %}
                 </div>
-                <h2>核销积分</h2>
-                <p>扫码枪或手动录入编号，实时校验真伪并累计本次核销总额。</p>
-                <span class="tile-cta">去核销 →</span>
-            </a>
+            </div>
+
+            <div class="kpi kpi--green">
+                <div class="kpi__label">在线一体机</div>
+                <div class="kpi__value" id="devOnline">—<small>/ {{ stats.device_total }}</small></div>
+                <div class="kpi__foot" id="devFoot">正在检测…</div>
+            </div>
+
+            <div class="kpi kpi--amber">
+                <div class="kpi__label">积分卡</div>
+                <div class="kpi__value">{{ stats.cards_total }}<small>张</small></div>
+                <div class="kpi__foot">
+                    已核销 {{ stats.cards_used }} · 待核销 {{ stats.cards_unused }}
+                </div>
+            </div>
+
+            <div class="kpi">
+                <div class="kpi__label">今日核销</div>
+                <div class="kpi__value">{{ stats.cards_today }}<small>张</small></div>
+                <div class="kpi__foot">按核销时间统计</div>
+            </div>
+        </div>
+
+        <div class="dash-cols">
+            <!-- 左列 -->
+            <div class="dash-col">
+                <section class="card">
+                    <div class="panel-head">
+                        <h2>一体机状态</h2>
+                        <span class="spacer"></span>
+                        <span class="hint" id="devUpdated">—</span>
+                    </div>
+                    <div id="devList">
+                        <div class="empty-tip">正在检测一体机…</div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="panel-head">
+                        <h2>快捷入口</h2>
+                    </div>
+                    <div class="quick-grid">
+                        <a draggable="false" class="quick" href="/generate">
+                            <div class="quick__title">生成积分</div>
+                            <div class="quick__desc">批量生成防伪编号并导出 Word</div>
+                        </a>
+                        <a draggable="false" class="quick" href="/verify">
+                            <div class="quick__title">核销积分</div>
+                            <div class="quick__desc">扫码或输码核销</div>
+                        </a>
+                        <a draggable="false" class="quick" href="/monitor">
+                            <div class="quick__title">班级监控</div>
+                            <div class="quick__desc">实时画面与双向对讲</div>
+                        </a>
+                        <a draggable="false" class="quick" href="/call">
+                            <div class="quick__title">班级叫号</div>
+                            <div class="quick__desc">语音播报学生姓名</div>
+                        </a>
+                        <a draggable="false" class="quick" href="/groups/live">
+                            <div class="quick__title">小组换座</div>
+                            <div class="quick__desc">打分排名，投屏展示座位</div>
+                        </a>
+                        <a draggable="false" class="quick" href="/students">
+                            <div class="quick__title">学生名单</div>
+                            <div class="quick__desc">导入名单，管理学生信息</div>
+                        </a>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 右列 -->
+            <div class="dash-col">
+                <section class="card card--grow">
+                    <div class="panel-head">
+                        <h2>最近操作</h2>
+                        <span class="spacer"></span>
+                        <a draggable="false" class="hint" href="/audit" style="text-decoration:none">查看全部 →</a>
+                    </div>
+
+                    <div class="log-list">
+                    {% if audit_rows %}
+                        {% for row in audit_rows %}
+                        <div class="log-row">
+                            <span class="log-time">{{ row.time[5:16] }}</span>
+                            <span class="log-event">{{ row.label }}</span>
+                            <span class="log-detail" title="{{ row.detail }}">{{ row.detail or '—' }}</span>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-tip">还没有操作记录</div>
+                    {% endif %}
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="panel-head"><h2>系统信息</h2></div>
+                    <div class="dev-row" style="border:0;background:transparent;padding:4px 0;margin:0">
+                        <div class="dev-main">
+                            <div class="dev-meta">系统名称：{{ system_name }}</div>
+                            <div class="dev-meta">运行状态：本地运行，数据保存在本机 data 目录</div>
+                            <div class="dev-meta">配置完整性：启动时自动校验</div>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </div>
     </main>
 
     </div>
+
+<script>
+(function () {
+    var devList = document.getElementById('devList');
+    var devOnline = document.getElementById('devOnline');
+    var devFoot = document.getElementById('devFoot');
+    var devUpdated = document.getElementById('devUpdated');
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function render(data) {
+        devOnline.innerHTML = data.online + '<small>/ ' + data.total + '</small>';
+
+        if (!data.total) {
+            devFoot.textContent = '还没有添加一体机';
+            devList.innerHTML = '<div class="empty-tip">还没有添加一体机，去「设置 → 班级设备」里添加</div>';
+            devUpdated.textContent = '—';
+            return;
+        }
+
+        devFoot.textContent = data.online === data.total ? '全部在线' :
+            (data.online === 0 ? '全部离线' : '有 ' + (data.total - data.online) + ' 台离线');
+
+        var html = '';
+        data.devices.forEach(function (d) {
+            var cls = d.reachable ? 'is-on' : 'is-off';
+
+            var tags = '';
+            tags += '<span class="tagx ' + (d.reachable ? 'is-on' : 'is-off') + '">' +
+                (d.reachable ? '在线' : '离线') + '</span>';
+
+            if (d.reachable) {
+                if (d.camera === true) tags += '<span class="tagx is-on">摄像头</span>';
+                if (d.mic === true) tags += '<span class="tagx is-on">麦克风</span>';
+                if (d.fps) tags += '<span class="tagx">' + d.fps + ' fps</span>';
+                if (d.needSetup) tags += '<span class="tagx is-warn">待设置</span>';
+            }
+
+            html += '<div class="dev-row">' +
+                '<span class="dev-dot ' + cls + '"></span>' +
+                '<div class="dev-main">' +
+                    '<div class="dev-name">' + esc(d.name || d.host) + '</div>' +
+                    '<div class="dev-meta">' + esc(d.room || '未设置教室') + ' · ' +
+                        esc(d.host) + ':' + esc(d.port) +
+                        (d.version ? ' · v' + esc(d.version) : '') +
+                        (d.reachable ? '' : (d.error ? ' · ' + esc(d.error) : '')) +
+                    '</div>' +
+                '</div>' +
+                '<div class="dev-tags">' + tags + '</div>' +
+            '</div>';
+        });
+
+        devList.innerHTML = html;
+        devUpdated.textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    }
+
+    function load() {
+        fetch('/api/dashboard/devices', { headers: { 'X-Requested-With': 'fetch' } })
+            .then(function (r) { return r.json(); })
+            .then(render)
+            .catch(function () {
+                devList.innerHTML = '<div class="empty-tip">读取设备状态失败</div>';
+            });
+    }
+
+    load();
+    setInterval(load, 10000);
+})();
+</script>
 </body>
 </html>
