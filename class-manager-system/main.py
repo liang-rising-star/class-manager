@@ -1633,7 +1633,7 @@ async def security_middleware(request: Request, call_next):
     # 防止访问敏感文件，静默跳转登录页（前缀/精确匹配，避免子串误伤正常路由）
     path = request.url.path
     if path.startswith(("/data/", "/db/")) or path in (
-        "/config.json", "/Dockerfile", "/docker-compose.yml", "/requirements.txt"
+        "/config.json", "/requirements.txt"
     ):
         return RedirectResponse(url="/login")
 

@@ -84,24 +84,31 @@
 
 ---
 
-## 🚀 安装
+## 🚀 下载与安装
+
+安装包不在仓库里（`dist/` 是构建产物，已被 `.gitignore` 忽略），
+请到 **Releases** 页面下载：
+
+> 🔗 **<https://github.com/liang-rising-star/class-manager/releases>**
+
+| 文件 | 说明 |
+|---|---|
+| `class-manager-setup.exe` | 老师端安装程序 |
+| `class-manager-kiosk-setup-v1.0.exe` | 一体机端安装程序 |
+| `class-manager-update-v1.0-win-x64.zip` | 在线更新包（程序「检查更新」用） |
 
 ### 老师端
 
-```powershell
-dist\class-manager-setup.exe
-```
+双击 `class-manager-setup.exe`：
 
-安装程序会：选目录 → 释放程序（含内置 Python 运行时，不用另装）→ 建快捷方式 → 可选开机自启 → 写卸载登记。
-装完双击启动，首次进入需要设置管理员口令。
+- 选安装目录 → 释放程序（含内置 Python 运行时，不用另装）
+- 建桌面 / 开始菜单快捷方式，可选开机自启
+- 写卸载登记，之后可从「设置 → 应用」卸载
+- 装完双击启动，首次进入设置管理员口令
 
 ### 一体机端
 
-```powershell
-dist\class-manager-kiosk-setup-v1.0.exe
-```
-
-安装界面（WebView2）：
+双击 `class-manager-kiosk-setup-v1.0.exe`，安装界面（WebView2）：
 
 - 安装位置可手填，也可点「选择文件夹…」
 - 默认装到**非系统盘**（有 D 盘就是 `D:\ClassManager-Kiosk`），普通用户即可写入
@@ -132,6 +139,25 @@ class-manager-kiosk-setup-v1.0.exe --silent --dir "D:\ClassManager-Kiosk"
 | 3457 | UDP | 一体机端 | 摄像头视频流 |
 
 一体机必须放行入站 **TCP + UDP 3457**（首次启动弹窗点「允许」，或手动加防火墙规则）。
+
+### 需要在公网访问？
+
+系统本身**不依赖任何服务器**，默认只在局域网内使用。
+如果确实要从校外访问教室一体机，请**自行搭配内网穿透**（本仓库不内置、也不提供中转服务）：
+
+| 方案 | 说明 |
+|---|---|
+| FRP | 自建公网服务器 + frpc 放在一体机侧 |
+| Tailscale / ZeroTier | 组虚拟局域网，两端装客户端即可，配置最简单 |
+| Cloudflare Tunnel / ngrok | 适合临时调试，长期用注意免费额度与稳定性 |
+
+要点：
+
+- 穿透客户端装在**一体机侧**，映射到一体机的 `3457`
+- **必须同时映射 TCP 和 UDP 3457**，只映射 TCP 会有画面但没视频（视频走 UDP）
+- 一体机保持 `BindAddress = 0.0.0.0`（默认就是）
+- 教师端仍然用桌面版连穿透后的地址；用浏览器开 `http://` 公网地址时浏览器会禁用麦克风，**对讲不可用**
+- 暴露到公网等于把这台一体机的接口开到互联网，务必设置强访问密码，并只放行必要端口
 
 ---
 
@@ -291,7 +317,10 @@ docs/release.md              # 发版与在线更新流程
 
 ---
 
-## 📦 构建与打包
+## 📦 构建与打包（开发者）
+
+> 只想使用的话不用看这节，直接去 [Releases](https://github.com/liang-rising-star/class-manager/releases) 下载安装包。
+> 下面的命令产物都落在 `dist/`，该目录已在 `.gitignore` 里，不会进仓库。
 
 ```powershell
 # 教师端：完整包 + 安装程序 → dist\class-manager-setup.exe
@@ -363,18 +392,6 @@ GitHub 仓库还没有发布 Release。发一个带 `update` 字样 zip 附件�
 
 **一体机端连不上？**
 检查三件事：同一局域网（含 AP 隔离）、防火墙放行 TCP+UDP 3457、IP 是否固定。
-
----
-
-## 🐳 可选：Docker 部署（仅 Web 页面）
-
-不装桌面壳、只用浏览器打开网页时：
-
-```bash
-docker run -d --name class-manager -p 8000:8000 -v ./data:/app/data wsxxstar/class-manager:latest
-```
-
-> 通过 `http://<局域网IP>:8000` 访问时浏览器会禁用麦克风，**对讲功能不可用**；需要对讲请装教师端桌面版。
 
 ---
 

@@ -86,7 +86,6 @@ $excludeDirs = @(
     "python/Lib/site-packages/wheel"
 )
 $excludeFiles = @("*.pyc", "*.pyo", "python-*-embed-*.zip", "*.log",
-                  "Dockerfile", "docker-compose.yml", "entrypoint.sh", ".dockerignore",
                   "*.bat", "generate_manual.py")
 
 $robocopyArgs = @($backendSrc, $backendDir, "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NP",

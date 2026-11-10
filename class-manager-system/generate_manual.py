@@ -183,7 +183,7 @@ add_note("依赖包括 fastapi、uvicorn、jinja2、python-docx、python-barcode
 doc.add_heading("2.2 Docker 部署", level=2)
 doc.add_paragraph("如需使用 Docker 部署，执行以下命令：")
 p = doc.add_paragraph()
-run = p.add_run("docker-compose up -d")
+run = p.add_run("python run.py")
 run.font.name = 'Consolas'
 run.font.size = Pt(10)
 
@@ -356,7 +356,6 @@ add_info_table([
     ("config.json", "系统配置文件（管理员账号、数据库路径等）"),
     ("requirements.txt", "Python 依赖清单"),
     ("Dockerfile", "Docker 镜像构建文件"),
-    ("docker-compose.yml", "Docker Compose 编排文件"),
     ("db/scores.db", "SQLite 数据库（运行后自动生成）"),
     ("output/", "Word 文档输出目录"),
     ("templates/", "HTML 模板文件目录"),
