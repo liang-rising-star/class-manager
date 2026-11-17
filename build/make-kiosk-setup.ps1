@@ -81,3 +81,7 @@ Write-Host ("   安装包：" + $target + "（" + [math]::Round((Get-Item $targe
 
 # 清理中间产物
 Remove-Item $payload -Force -ErrorAction SilentlyContinue
+
+# 打包完成顺手同步一份到 packages\，方便直接取用
+$collect = Join-Path $PSScriptRoot "collect-packages.ps1"
+if (Test-Path $collect) { & $collect }

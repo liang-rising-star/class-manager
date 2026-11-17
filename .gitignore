@@ -67,3 +67,7 @@ installer/ClassManager.Setup/payload.zip
 # 根目录不要放构建产物
 /*.exe
 /*.zip
+
+# 安装包汇总目录：build\collect-packages.ps1 会把 dist 里的成品同步到这里，
+# 只是方便本地取用，不进仓库
+/packages/

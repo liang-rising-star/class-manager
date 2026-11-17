@@ -167,3 +167,7 @@ if ($label -match "Low Mandatory") {
 $totalMb = [math]::Round(((Get-ChildItem $target -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
 Write-Host ""
 Write-Host "完成：$target  （$totalMb MB）" -ForegroundColor Green
+
+# 打包完成顺手同步一份到 packages\，方便直接取用
+$collect = Join-Path $PSScriptRoot "collect-packages.ps1"
+if (Test-Path $collect) { & $collect }

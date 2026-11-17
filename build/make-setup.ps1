@@ -95,3 +95,7 @@ if ($label -match "Low Mandatory") {
 
 Write-Host ""
 Write-Host "完成：$setupExe（$sizeMb MB，单文件）" -ForegroundColor Green
+
+# 打包完成顺手同步一份到 packages\，方便直接取用
+$collect = Join-Path $PSScriptRoot "collect-packages.ps1"
+if (Test-Path $collect) { & $collect }

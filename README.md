@@ -332,6 +332,19 @@ powershell -ExecutionPolicy Bypass -File build\make-kiosk-setup.ps1
 
 # 只出绿色包（不出安装程序）
 powershell -ExecutionPolicy Bypass -File build\package.ps1
+
+# 把 dist 里的成品汇总到 packages\（打包脚本结束时会自动调用）
+powershell -ExecutionPolicy Bypass -File build\collect-packages.ps1
+```
+
+成品统一收在 **`packages\`** 目录，只方便本机取用，已在 `.gitignore` 里排除：
+
+```
+packages\
+├── class-manager-setup.exe              老师端安装程序
+├── class-manager-kiosk-setup-v1.1.exe   一体机端安装程序
+├── class-manager-update-v1.1-win-x64.zip  在线更新包
+└── class-manager-v1.1-win-x64.zip       绿色免安装包
 ```
 
 打包脚本会从 `main.py` 的 `APP_VERSION` 读版本号，并额外产出
