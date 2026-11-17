@@ -40,7 +40,7 @@ app = FastAPI()
 
 # 获取当前文件所在目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-APP_VERSION = "1.0"
+APP_VERSION = "1.1"
 
 # 配置静态文件
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
@@ -2491,6 +2491,16 @@ def _dashboard_stats():
         db.close()
 
     return stats
+
+
+@app.get("/api/app-id")
+def api_app_id():
+    """产品标识：桌面端用它判断「端口上跑的是不是自己」。
+
+    不需要登录，也不会暴露任何数据；
+    旧版班级积分管理系统没有这个接口，因此不会被误认。
+    """
+    return JSONResponse({"app": "class-manager", "version": APP_VERSION})
 
 
 @app.get("/api/dashboard/devices")

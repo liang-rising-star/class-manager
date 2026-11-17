@@ -12,9 +12,9 @@
     <Product>班级管理系统</Product>
     <Description>班级管理系统 · 启动器</Description>
     <Company>liang-rising-star</Company>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
     <DebugType>none</DebugType>
 
     <!-- 原生 AOT：编译成单个原生 exe，不依赖 .NET 运行时，也不需要在根目录放一堆 DLL -->

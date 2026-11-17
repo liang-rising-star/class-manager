@@ -409,7 +409,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 /// <summary>内嵌 Python 后端的生命周期管理。</summary>
 internal sealed class BackendServer
 {
-    private const int PreferredPort = 3445;
+    private const int PreferredPort = 3480;
 
     private readonly string _root;
     private Process? _process;
@@ -443,7 +443,7 @@ internal sealed class BackendServer
 
     private string StartCore(bool allowReuse)
     {
-        // 3445 上已经是本应用（比如上次没退干净）就直接复用，不再起第二个后端
+        // 首选端口上已经是本应用（比如上次没退干净）就直接复用，不再起第二个后端
         if (allowReuse && LooksLikeOurApp(PreferredPort))
         {
             Port = PreferredPort;
@@ -546,14 +546,32 @@ internal sealed class BackendServer
         }
     }
 
-    /// <summary>端口上跑的是不是本应用（看登录页是否含我们的样式类）。</summary>
+    /// <summary>
+    /// 端口上跑的是不是「本产品」的后端。
+    /// 只认页面里的 data-app 标记，不再用通用样式类判断——
+    /// 否则会把自己另一个同类程序（例如旧版班级积分管理系统）当成自己，
+    /// 复用它之后界面会整个串成对方的产品。
+    /// </summary>
     private static bool LooksLikeOurApp(int port)
     {
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMilliseconds(900) };
+
+        // 首选：后端自报产品名（未初始化时也有，不依赖页面模板）
         try
         {
-            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMilliseconds(900) };
+            var json = http.GetStringAsync($"http://127.0.0.1:{port}/api/app-id").GetAwaiter().GetResult();
+            if (json.Contains("\"class-manager\"", StringComparison.Ordinal)) return true;
+        }
+        catch
+        {
+            // 老版本没有这个接口，退回看页面标记
+        }
+
+        // 兜底：登录页上的静态标记
+        try
+        {
             var html = http.GetStringAsync($"http://127.0.0.1:{port}/login").GetAwaiter().GetResult();
-            return html.Contains("auth-card", StringComparison.Ordinal);
+            return html.Contains("data-app=\"class-manager\"", StringComparison.Ordinal);
         }
         catch
         {

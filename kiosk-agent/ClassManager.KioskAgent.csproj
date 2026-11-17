@@ -10,9 +10,9 @@
     <RootNamespace>ClassManager.KioskAgent</RootNamespace>
     <ApplicationIcon>..\logo.ico</ApplicationIcon>
     <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
     <Product>班级管理系统 · 一体机代理</Product>
     <NoWarn>$(NoWarn);CA1416;NU1701;SYSLIB0014</NoWarn>
   </PropertyGroup>

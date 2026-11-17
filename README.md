@@ -2,7 +2,7 @@
 
 # 🏫 班级管理系统
 
-**班级管理 + 教室设备** 一体化的本地化平台 · v1.0
+**班级管理 + 教室设备** 一体化的本地化平台 · v1.1
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -70,7 +70,7 @@
 │                              │  TCP   │                          │
 │  class-manager.exe           │ 3457   │  class-manager-kiosk.exe │
 │  ├─ WinForms + WebView2 外壳  │ ─────▶ │  ├─ 托盘常驻，HTTP 服务    │
-│  └─ 本地后端 127.0.0.1:3445   │ ◀───── │  ├─ 摄像头 / 屏幕 / 麦克风 │
+│  └─ 本地后端 127.0.0.1:3480   │ ◀───── │  ├─ 摄像头 / 屏幕 / 麦克风 │
 │                              │  UDP   │  ├─ 语音播报（SAPI）       │
 │  页面：控制台 / 学生 / 小组    │ 3457   │  ├─ 全屏叫号动画 / 投屏    │
 │        监控 / 叫号 / 积分     │        │  └─ 远程指令（白名单）     │
@@ -78,7 +78,7 @@
                                     视频帧（UDP 分片推流）
 ```
 
-- **页面永远在本机**：教师端窗口加载 `http://127.0.0.1:3445`，浏览器按「安全上下文」处理，对讲麦克风权限不会被拦
+- **页面永远在本机**：教师端窗口加载 `http://127.0.0.1:3480`，浏览器按「安全上下文」处理，对讲麦克风权限不会被拦
 - **视频走 UDP**：摄像头帧分片推送，走 TCP 只会浪费带宽
 - **其余接口走 TCP**：状态、设置、播报、指令、投屏、音频
 
@@ -94,8 +94,8 @@
 | 文件 | 说明 |
 |---|---|
 | `class-manager-setup.exe` | 老师端安装程序 |
-| `class-manager-kiosk-setup-v1.0.exe` | 一体机端安装程序 |
-| `class-manager-update-v1.0-win-x64.zip` | 在线更新包（程序「检查更新」用） |
+| `class-manager-kiosk-setup-v1.1.exe` | 一体机端安装程序 |
+| `class-manager-update-v1.1-win-x64.zip` | 在线更新包（程序「检查更新」用） |
 
 ### 老师端
 
@@ -108,7 +108,7 @@
 
 ### 一体机端
 
-双击 `class-manager-kiosk-setup-v1.0.exe`，安装界面（WebView2）：
+双击 `class-manager-kiosk-setup-v1.1.exe`，安装界面（WebView2）：
 
 - 安装位置可手填，也可点「选择文件夹…」
 - 默认装到**非系统盘**（有 D 盘就是 `D:\ClassManager-Kiosk`），普通用户即可写入
@@ -118,7 +118,7 @@
 也支持静默安装（机房批处理）：
 
 ```powershell
-class-manager-kiosk-setup-v1.0.exe --silent --dir "D:\ClassManager-Kiosk"
+class-manager-kiosk-setup-v1.1.exe --silent --dir "D:\ClassManager-Kiosk"
 ```
 
 首次运行：托盘图标 → 打开设置 → 设置访问密码 → 填教室名称 → 选摄像头。
@@ -134,7 +134,7 @@ class-manager-kiosk-setup-v1.0.exe --silent --dir "D:\ClassManager-Kiosk"
 
 | 端口 | 协议 | 在哪台机器 | 用途 |
 |---|---|---|---|
-| 3445 | TCP | 教师端 | 桌面版内置后端（仅本机） |
+| 3480 | TCP | 教师端 | 桌面版内置后端（仅本机，被占用时 3481–3509 顺延） |
 | 3457 | TCP | 一体机端 | HTTP 接口（状态 / 播报 / 指令 / 音频 / 投屏） |
 | 3457 | UDP | 一体机端 | 摄像头视频流 |
 
@@ -313,6 +313,7 @@ installer/
 └── ClassManager.KioskUninstall  # 一体机端卸载程序
 build/                       # 打包脚本
 docs/release.md              # 发版与在线更新流程
+docs/CHANGELOG.md            # 版本更新日志
 ```
 
 ---
@@ -389,6 +390,14 @@ v1.0 起加了进程保护，这是正常现象。请用托盘图标右键「退
 
 **检查更新提示「仓库还没有发布版本」？**
 GitHub 仓库还没有发布 Release。发一个带 `update` 字样 zip 附件的 Release 即可，见 [docs/release.md](docs/release.md)。
+
+**同时装了旧版「班级积分管理系统」，界面变成对方的样子？**
+v1.1 已修复。旧版两个程序都用 3445 端口、又只看登录页的通用样式类判断"是不是自己"，
+会互相复用到对方的后端。现在教师端改用 3480，并校验 `data-app` 产品标记，两边互不串台。
+
+**教师端为什么是 3480 端口？**
+为了和旧版班级积分管理系统（3445）彻底分开，避免同机安装时抢占端口。
+3480 被占用时会在 3481–3509 自动顺延，不影响一体机的 3457。
 
 **一体机端连不上？**
 检查三件事：同一局域网（含 AP 隔离）、防火墙放行 TCP+UDP 3457、IP 是否固定。

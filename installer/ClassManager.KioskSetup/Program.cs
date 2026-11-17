@@ -17,7 +17,7 @@ namespace ClassManager.KioskSetup;
 internal static class Program
 {
     public const string AppName = "班级管理系统 · 一体机端";
-    public const string AppVersion = "1.0";
+    public const string AppVersion = "1.1";
     public const string KioskExe = "class-manager-kiosk.exe";
     public const string PayloadResource = "payload.zip";
     public const string RunKeyName = "class-manager-kiosk";

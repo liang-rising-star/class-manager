@@ -63,3 +63,7 @@ _o.txt
 # 安装程序中间产物
 installer/ClassManager.KioskSetup/payload.zip
 installer/ClassManager.Setup/payload.zip
+
+# 根目录不要放构建产物
+/*.exe
+/*.zip
